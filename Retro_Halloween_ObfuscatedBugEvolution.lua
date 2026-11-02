@@ -10,7 +10,12 @@ local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
-local previous = playerGui:FindFirstChild("RetroPullGUI")
+local guiParent = playerGui
+if type(gethui) == "function" then
+    local ok, hiddenGui = pcall(gethui)
+    if ok and typeof(hiddenGui) == "Instance" then guiParent = hiddenGui end
+end
+local previous = guiParent:FindFirstChild("RetroPullGUI")
 if previous then previous:Destroy() end
 
 local C = {
@@ -391,8 +396,12 @@ local function button(title,size,position,parent)
     create("UIStroke",{Color=T.Purple,Transparency=0.65,Thickness=1},b)
     return b
 end
-local gui=create("ScreenGui",{Name="RetroPullGUI",ResetOnSpawn=false,
-    ZIndexBehavior=Enum.ZIndexBehavior.Sibling},playerGui)
+local guiProperties={Name="RetroPullGUI",ResetOnSpawn=false,
+    Enabled=true,DisplayOrder=10000,IgnoreGuiInset=true,
+    ZIndexBehavior=Enum.ZIndexBehavior.Sibling}
+local guiReady,gui=pcall(function() return create("ScreenGui",guiProperties,guiParent) end)
+if not guiReady then gui=create("ScreenGui",guiProperties,playerGui) end
+local booted,bootError=xpcall(function()
 local host=create("Frame",{Size=UDim2.fromOffset(680,760),Position=UDim2.fromScale(0.5,0.5),
     AnchorPoint=Vector2.new(0.5,0.5),BackgroundTransparency=1},gui)
 local scale=create("UIScale",{Scale=1},host)
@@ -420,6 +429,7 @@ U.footer=label({Position=UDim2.new(0.5,4,1,-50),Size=UDim2.new(0.5,-18,0,38),
     Text="HALLOWEEN EDITION\nMade by Retro",TextSize=11,TextColor3=T.Muted},U.chrome)
 U.reopen=button("🎃",UDim2.fromOffset(60,60),UDim2.new(1,-72,0.5,-30),gui)
 U.reopen.Name="PanelBubble"
+U.reopen.Active=true
 U.reopen.TextSize=28
 U.reopen.ZIndex=20
 U.reopen.AutoButtonColor=true
@@ -1734,3 +1744,17 @@ task.spawn(function()
         waitFor(0.1)
     end
 end)
+end, function(err) return tostring(err) end)
+if not booted then
+    warn("[Retro GUI startup]",bootError)
+    local errorNotice=Instance.new("TextLabel")
+    errorNotice.Name="StartupError"
+    errorNotice.Size=UDim2.new(0,340,0,80)
+    errorNotice.Position=UDim2.new(0.5,-170,0,35)
+    errorNotice.BackgroundColor3=Color3.fromRGB(45,12,24)
+    errorNotice.TextColor3=Color3.fromRGB(255,230,210)
+    errorNotice.TextWrapped=true
+    errorNotice.TextSize=13
+    errorNotice.Text="Retro GUI failed to open:\n"..bootError
+    errorNotice.Parent=gui
+end
