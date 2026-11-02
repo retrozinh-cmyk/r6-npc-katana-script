@@ -1,186 +1,1736 @@
-local Players = game : GetService ( "\080\108\097\121\101\114\115" ) local UIS = game : GetService ( "\085\115\101\114\073\110\112\117\116\083\101\114\118\105\099\101" ) local RunService = game : GetService ( "\082\117\110\083\101\114\118\105\099\101" ) local TweenService = game : GetService ( "\084\119\101\101\110\083\101\114\118\105\099\101" ) local HttpService = game : GetService ( "\072\116\116\112\083\101\114\118\105\099\101" ) local TeleportService = game : GetService ( "\084\101\108\101\112\111\114\116\083\101\114\118\105\099\101" ) local _h5 = Players . LocalPlayer local _j6 = _h5 : WaitForChild ( "\080\108\097\121\101\114\071\117\105" ) local previous = _j6 : FindFirstChild ( "\082\101\116\114\111\080\117\108\108\071\085\073" ) if previous then previous : Destroy ( ) end local _a4 = { OrbMode = "\077\101\100\105\117\109" , OrbMethod = "\084\101\108\101\112\111\114\116" , OrbDelay
-= 0.15 , AttemptsPerOrb = 3 , SweepInterval = 2 , TweenSpeed = 100 , AcornMode = "\077\101\100\105\117\109" , FarmInterval = 0.15 , FarmOffset = 0 , BugHeight = 1.5 , BugInterval = 0.15 , AcornMethod = "\084\101\108\101\112\111\114\116" , BugMethod = "\084\101\108\101\112\111\114\116" , PlayerMethod = "\084\101\108\101\112\111\114\116" , AcornTweenSpeed = 100 , BugTweenSpeed = 80 , PlayerTweenSpeed = 80 , PlayerFollowHeight = 5 , PlayerFollowInterval = 0.03 , SafeHeight = 1000 , PlayerTrigger = 20 , PlayerRelease = 500 , AntiHeight = 50 , VoidHeight = workspace . FallenPartsDestroyHeight + 50 , ServerRetryDelay = 10 , WalkSpeed = 16 , }
-local defaults = { } for k , v in pairs ( _a4 ) do defaults [ k ] = v end local _b7 = { Orbs = false , AutoFarm = false , KillBugs = false , KillPlayers = false , AntiPlayer = false , AntiVoid = true , SafeZone = false , CustomSpeed = false } local _c2 = { Motion = "\077\111\118\101\109\101\110\116\058\032\105\100\108\101" , AntiPlayer = "\065\110\116\105\032\080\108\097\121\101\114\058\032\079\070\070" , AntiVoid = "\065\110\116\105\032\086\111\105\100\058\032\079\078" , SafeZone = "\083\097\102\101\032\090\111\110\101\058\032\079\070\070" } local _d9 = { Background = Color3 . fromRGB ( 17 , 10 , 23 ) , Panel = Color3 . fromRGB
-( 31 , 17 , 39 ) , Button = Color3 . fromRGB ( 54 , 28 , 62 ) , Orange = Color3 . fromRGB ( 255 , 130 , 28 ) , Purple = Color3 . fromRGB ( 143 , 74 , 220 ) , Text = Color3 . fromRGB ( 255 , 235 , 208 ) , Muted = Color3 . fromRGB ( 190 , 160 , 198 ) , Active = Color3 . fromRGB ( 139 , 63 , 18 ) , } local _f3 , _g8 = true , { } local version , trip
-, refuge , safePlatform , safeReturn , safeCharacter = 0 local activeTween , anchorState , noclipCharacter local followedPlayer local speedState local biomeReturn local biomeRowConnections = { } local collisionStates = { } local checkpoint , checkpointCharacter , lastRescue = nil , nil , 0 local buttons , labels , fields = { } , { } , { } local selectedColors , knownColors , colorRows = { } , { } , { } local defaultColorSelected = true local refreshColors = function ( ) end local _e1 = { Cards = { } , Nav = { } , Group
-= "\070\097\114\109" , ActiveTab = "\070\097\114\109" , SettingsRows = { } , SettingTab = "\079\114\098\115" , ToastUntil = 0 , BugSelection = { } , KnownBugs = { } , BugRows = { } , BugDefault = true , AcornSelection = { } , KnownAcorns = { } , AcornRows = { } , AcornDefault = true } local serverResults , visitedServers , serverRowConnections = { } , { } , { } local scanBusy , scanToken , autoHop , hopPending = false , 0 , false , nil local serverMessage = "\082\101\097\100\121\046\032\083\099\097\110\032\112\117\098\108\105\099\032\115\101\114\118\101\114\115\032\119\105\116\104\032\049\045\051\032\112\108\097\121\101\114\115\046" local renderServers , refreshServerControls local function connect
-( signal , fn ) local connection = signal : Connect ( fn ) table . insert ( _g8 , connection ) return connection end local function waitFor ( seconds , expectedVersion ) local deadline = os . clock ( ) + seconds repeat if not _f3 or ( expectedVersion and expectedVersion ~= version ) then return false end local remaining = deadline - os . clock ( ) if remaining <= 0 then if seconds <= 0 then task . wait ( ) end return _f3 and ( not expectedVersion or expectedVersion == version ) end task . wait
-( math . min ( 0.05 , remaining ) ) until false end local function rootOf ( character ) return character and character : FindFirstChild ( "\072\117\109\097\110\111\105\100\082\111\111\116\080\097\114\116" ) end local function alive ( character ) local h = character and character : FindFirstChildOfClass ( "\072\117\109\097\110\111\105\100" ) return character ~= nil and character == _h5 . Character and rootOf ( character ) ~= nil and h ~= nil and h . Health > 0 end local function restoreSpeed ( ) local saved = speedState speedState = nil if saved then pcall ( function ( ) saved . Humanoid . WalkSpeed =
-saved . Original end ) end end local function updateSpeed ( ) local ch = _h5 . Character local humanoid = ch and ch : FindFirstChildOfClass ( "\072\117\109\097\110\111\105\100" ) if not _b7 . CustomSpeed or not humanoid or humanoid . Health <= 0 then if speedState then restoreSpeed ( ) end return end if not speedState or speedState . Humanoid ~= humanoid then restoreSpeed ( ) speedState = { Humanoid = humanoid , Original = humanoid . WalkSpeed } end if humanoid . WalkSpeed ~= _a4 . WalkSpeed then humanoid . WalkSpeed = _a4 . WalkSpeed end end local function
-move ( character , target ) if not alive ( character ) then return false end return pcall ( function ( ) local root = rootOf ( character ) character : FindFirstChildOfClass ( "\072\117\109\097\110\111\105\100" ) . Sit = false root . AssemblyLinearVelocity , root . AssemblyAngularVelocity = Vector3 . zero , Vector3 . zero character : PivotTo ( target * root . CFrame : Inverse ( ) * character : GetPivot ( ) ) root . AssemblyLinearVelocity , root . AssemblyAngularVelocity = Vector3 . zero , Vector3 . zero end ) end local function restoreCollisions ( ) noclipCharacter = nil
-for part , original in pairs ( collisionStates ) do pcall ( function ( ) part . CanCollide = original end ) end table . clear ( collisionStates ) end local function applyNoclip ( character ) for _ , part in ipairs ( character : GetDescendants ( ) ) do if part : IsA ( "\066\097\115\101\080\097\114\116" ) then if collisionStates [ part ] == nil then collisionStates [ part ] = part . CanCollide end part . CanCollide = false end end end connect ( RunService . Stepped , function ( ) if _f3 and noclipCharacter then applyNoclip ( noclipCharacter
-) end end ) local function releaseAnchor ( ) local saved = anchorState anchorState = nil if saved then pcall ( function ( ) saved . Root . Anchored = saved . Original end ) end end local function anchor ( character ) local root = rootOf ( character ) if not root then return end if not anchorState or anchorState . Root ~= root then releaseAnchor ( ) anchorState = { Root = root , Original = root . Anchored } end root . Anchored = true end local function stopTraversal ( ) if activeTween then activeTween : Cancel
-( ) ; activeTween = nil end restoreCollisions ( ) releaseAnchor ( ) end local function returnTrip ( ) stopTraversal ( ) local saved = trip trip = nil if saved and saved . Character == _h5 . Character then return move ( saved . Character , saved . CFrame ) end return false end local function cancelMotion ( ) version = version + 1 stopTraversal ( ) if not _b7 . KillPlayers then followedPlayer = nil end if not refuge then returnTrip ( ) end end local function beginTrip ( character ) if not alive ( character ) then
-return nil end if trip and trip . Character ~= character then trip = nil end if not trip then trip = { Character = character , CFrame = rootOf ( character ) . CFrame } end return trip end local function canMove ( character , expectedVersion ) return _f3 and version == expectedVersion and not refuge and not hopPending and alive ( character ) end local function platformTarget ( part , character , rotation ) local root , h = rootOf ( character ) , character : FindFirstChildOfClass ( "\072\117\109\097\110\111\105\100" ) local clearance = math . max ( 5
-, h . HipHeight + root . Size . Y / 2 + 1 ) return CFrame . new ( part . Position + Vector3 . new ( 0 , part . Size . Y / 2 + clearance , 0 ) ) * rotation end local function makePlatform ( name , position , color ) local part = Instance . new ( "\080\097\114\116" ) part . Name , part . Size = name .. "\095" .. _h5 . UserId , Vector3 . new ( 50 , 2 , 50 ) part . Anchored , part . CanCollide = true
-, true part . Material , part . Color , part . Transparency = Enum . Material . Neon , color , 0.15 part . Position , part . Parent = position , workspace return part end local function leaveSafe ( ) if safeReturn and safeCharacter == _h5 . Character then move ( safeCharacter , safeReturn ) end if safePlatform then safePlatform : Destroy ( ) end safePlatform , safeReturn , safeCharacter = nil , nil , nil _c2 . SafeZone = "\083\097\102\101\032\090\111\110\101\058\032\079\070\070" end local function enterSafe ( ) local character = _h5 . Character if not alive ( character
-) then _c2 . SafeZone = "\083\097\102\101\032\090\111\110\101\058\032\099\104\097\114\097\099\116\101\114\032\117\110\097\118\097\105\108\097\098\108\101" ; return false end local root = rootOf ( character ) safeReturn , safeCharacter = root . CFrame , character local ok , err = pcall ( function ( ) safePlatform = makePlatform ( "\082\101\116\114\111\083\097\102\101\090\111\110\101" , root . Position + Vector3 . new ( 0 , _a4 . SafeHeight , 0 ) , _d9 . Orange ) assert ( move ( character , platformTarget ( safePlatform , character , root . CFrame . Rotation ) ) ) end ) if not ok then warn ( "\091\083\097\102\101\032\090\111\110\101\093" , err ) ; leaveSafe ( )
-; return false end _c2 . SafeZone = "\083\097\102\101\032\090\111\110\101\058\032\079\078" return true end local function nearestPlayer ( position ) local distance , name = math . huge , nil for _ , other in ipairs ( Players : GetPlayers ( ) ) do if other ~= _h5 and not ( _b7 . KillPlayers and other == followedPlayer ) then local ch = other . Character local root = rootOf ( ch ) local h = ch and ch : FindFirstChildOfClass ( "\072\117\109\097\110\111\105\100" ) if root and h and h . Health > 0 then local d = ( root . Position
-- position ) . Magnitude if d < distance then distance , name = d , other . DisplayName end end end end return distance , name end local function stopRefuge ( restore ) local saved = refuge refuge = nil version = version + 1 stopTraversal ( ) if saved then if restore and saved . Character == _h5 . Character then move ( saved . Character , saved . ReturnCFrame ) end if saved . Platform then saved . Platform : Destroy ( ) end end _c2 . AntiPlayer = _b7 . AntiPlayer and "\065\110\116\105\032\080\108\097\121\101\114\058\032\109\111\110\105\116\111\114\105\110\103" or "\065\110\116\105\032\080\108\097\121\101\114\058\032\079\070\070" end
-local function startRefuge ( ) local ch = _h5 . Character if refuge or not alive ( ch ) then return end local root = rootOf ( ch ) local saved = { Character = ch , ReturnCFrame = root . CFrame , Origin = root . Position } version = version + 1 stopTraversal ( ) refuge = saved local ok , err = pcall ( function ( ) saved . Platform = makePlatform ( "\082\101\116\114\111\065\110\116\105\080\108\097\121\101\114" , saved . Origin + Vector3 . new ( 0 , _a4 . AntiHeight , 0 ) , _d9 . Purple ) saved
-. Target = platformTarget ( saved . Platform , ch , saved . ReturnCFrame . Rotation ) assert ( move ( ch , saved . Target ) ) end ) if not ok then warn ( "\091\065\110\116\105\032\080\108\097\121\101\114\093" , err ) ; stopRefuge ( true ) end end local function gather ( container , output ) for _ , object in ipairs ( container : GetChildren ( ) ) do if object : IsA ( "\066\097\115\101\080\097\114\116" ) then table . insert ( output , object ) elseif object : IsA ( "\077\111\100\101\108" ) then if object : FindFirstChildWhichIsA ( "\066\097\115\101\080\097\114\116" ,
-true ) then table . insert ( output , object ) end else gather ( object , output ) end end end local function getPart ( object ) if object : IsA ( "\066\097\115\101\080\097\114\116" ) then return object end if object : IsA ( "\077\111\100\101\108" ) then return object . PrimaryPart or object : FindFirstChildWhichIsA ( "\066\097\115\101\080\097\114\116" , true ) end end local function positionOf ( object ) local part = getPart ( object ) return part and part . Position end local function colorInfo ( object ) local part = getPart ( object ) if not part then return
-nil end local color = part . Color return string . format ( "\037\100\044\037\100\044\037\100" , math . floor ( color . R * 255 + 0.5 ) , math . floor ( color . G * 255 + 0.5 ) , math . floor ( color . B * 255 + 0.5 ) ) , color end local function colorName ( color ) local h , s , v = color : ToHSV ( ) if v < 0.16 then return "\066\108\097\099\107" end if s < 0.14 then return v > 0.85 and "\087\104\105\116\101" or "\071\114\097\121" end h = h
-* 360 if h < 15 or h >= 345 then return "\082\101\100" elseif h < 45 then return "\079\114\097\110\103\101" elseif h < 70 then return "\089\101\108\108\111\119" elseif h < 165 then return "\071\114\101\101\110" elseif h < 195 then return "\067\121\097\110" elseif h < 255 then return "\066\108\117\101" elseif h < 290 then return "\080\117\114\112\108\101" end return "\080\105\110\107" end local function colorSelected ( key ) if selectedColors [ key ] == nil then return defaultColorSelected end return selectedColors [ key ] end local function allowedOrb ( object ) local key = colorInfo ( object ) return key ~= nil and
-colorSelected ( key ) end local function nearest ( objects , origin , predicate ) local index , distance = nil , math . huge for i , object in ipairs ( objects ) do if predicate ( object ) then local position = positionOf ( object ) if position then local d = ( position - origin ) . Magnitude if d < distance then index , distance = i , d end end end end return index end local function travelOrb ( ch , object , folder , token ) if not canMove ( ch , token )
-or not object : IsDescendantOf ( folder ) then return false end local position , root = positionOf ( object ) , rootOf ( ch ) if not position or not root then return false end local target = CFrame . new ( position ) * root . CFrame . Rotation if _a4 . OrbMethod == "\084\101\108\101\112\111\114\116" then return move ( ch , target ) end if _a4 . TweenSpeed <= 0 then return false end local distance = ( position - root . Position ) . Magnitude if distance < 0.05 then return move ( ch , target )
-end restoreCollisions ( ) noclipCharacter = ch applyNoclip ( ch ) local tween = TweenService : Create ( root , TweenInfo . new ( math . max ( distance / _a4 . TweenSpeed , 0.001 ) , Enum . EasingStyle . Linear ) , { CFrame = target } ) activeTween = tween tween : Play ( ) while canMove ( ch , token ) and _b7 . Orbs and not _b7 . AutoFarm and not _b7 . KillBugs and not _b7 . KillPlayers and object : IsDescendantOf ( folder ) and tween . PlaybackState == Enum . PlaybackState .
-Playing do task . wait ( 0.01 ) end local arrived = tween . PlaybackState == Enum . PlaybackState . Completed if activeTween == tween then tween : Cancel ( ) ; activeTween = nil ; restoreCollisions ( ) end return arrived and canMove ( ch , token ) end local function followMove ( ch , destination , token , method , speed ) if not canMove ( ch , token ) then return false end if method == "\084\101\108\101\112\111\114\116" then return move ( ch , destination ) end releaseAnchor ( ) local root = rootOf ( ch ) local
-distance = ( destination . Position - root . Position ) . Magnitude if distance < 0.1 then return true end if speed <= 0 then return false end local duration = math . min ( distance / speed , 0.2 ) local fraction = math . min ( 1 , speed * duration / distance ) local endpoint = root . CFrame : Lerp ( destination , fraction ) restoreCollisions ( ) noclipCharacter = ch applyNoclip ( ch ) local tween = TweenService : Create ( root , TweenInfo . new ( math . max ( duration , 0.001
-) , Enum . EasingStyle . Linear ) , { CFrame = endpoint } ) activeTween = tween tween : Play ( ) while canMove ( ch , token ) and tween . PlaybackState == Enum . PlaybackState . Playing do task . wait ( 0.01 ) end local completed = tween . PlaybackState == Enum . PlaybackState . Completed if activeTween == tween then tween : Cancel ( ) activeTween = nil restoreCollisions ( ) end return completed and canMove ( ch , token ) end local function acornTarget ( object , ch ) local ok , result =
-pcall ( function ( ) local box , size if object : IsA ( "\077\111\100\101\108" ) then box , size = object : GetBoundingBox ( ) else box , size = object . CFrame , object . Size end local root , h = rootOf ( ch ) , ch : FindFirstChildOfClass ( "\072\117\109\097\110\111\105\100" ) local height = ( math . abs ( box . RightVector . Y ) * size . X + math . abs ( box . UpVector . Y ) * size . Y + math . abs ( box . LookVector . Y ) *
-size . Z ) / 2 return CFrame . new ( box . Position + Vector3 . new ( 0 , height + h . HipHeight + root . Size . Y / 2 + 0.1 + _a4 . FarmOffset , 0 ) ) * root . CFrame . Rotation end ) return ok and result or nil end local function create ( class , properties , parent ) local object = Instance . new ( class ) for k , v in pairs ( properties ) do object [ k ] = v end object . Parent = parent
-return object end local function rounded ( object , radius ) create ( "\085\073\067\111\114\110\101\114" , { CornerRadius = UDim . new ( 0 , radius or 9 ) } , object ) end local function label ( properties , parent ) local p = { BackgroundTransparency = 1 , TextColor3 = _d9 . Text , Font = Enum . Font . Gotham , TextSize = 12 } for k , v in pairs ( properties ) do p [ k ] = v end return create ( "\084\101\120\116\076\097\098\101\108" , p , parent ) end local function button ( title ,
-size , position , parent ) local b = create ( "\084\101\120\116\066\117\116\116\111\110" , { Size = size , Position = position , BackgroundColor3 = _d9 . Button , Text = title , TextColor3 = _d9 . Text , Font = Enum . Font . GothamBold , TextSize = 13 , AutoButtonColor = true } , parent ) rounded ( b ) create ( "\085\073\083\116\114\111\107\101" , { Color = _d9 . Purple , Transparency = 0.65 , Thickness = 1 } , b ) return b end local gui = create ( "\083\099\114\101\101\110\071\117\105" , { Name = "\082\101\116\114\111\080\117\108\108\071\085\073" , ResetOnSpawn =
-false , ZIndexBehavior = Enum . ZIndexBehavior . Sibling } , _j6 ) local host = create ( "\070\114\097\109\101" , { Size = UDim2 . fromOffset ( 680 , 760 ) , Position = UDim2 . fromScale ( 0.5 , 0.5 ) , AnchorPoint = Vector2 . new ( 0.5 , 0.5 ) , BackgroundTransparency = 1 } , gui ) local scale = create ( "\085\073\083\099\097\108\101" , { Scale = 1 } , host ) _e1 . chrome = create ( "\070\114\097\109\101" , { Size = UDim2 . fromScale ( 1 , 1 ) , BackgroundColor3 = _d9 .
-Background } , host ) rounded ( _e1 . chrome , 16 ) create ( "\085\073\083\116\114\111\107\101" , { Color = _d9 . Orange , Thickness = 2 } , _e1 . chrome ) _e1 . navFrame = create ( "\070\114\097\109\101" , { Position = UDim2 . fromOffset ( 14 , 54 ) , Size = UDim2 . new ( 1 , - 28 , 0 , 74 ) , BackgroundTransparency = 1 } , _e1 . chrome ) _e1 . activity = create ( "\070\114\097\109\101" , { Position = UDim2 . fromOffset ( 14 , 138 ) , Size =
-UDim2 . new ( 1 , - 28 , 0 , 78 ) , BackgroundColor3 = _d9 . Panel } , _e1 . chrome ) rounded ( _e1 . activity , 10 ) label ( { Position = UDim2 . fromOffset ( 12 , 8 ) , Size = UDim2 . new ( 1 , - 110 , 0 , 16 ) , Text = "\067\085\082\082\069\078\084\032\065\067\084\073\079\078" , TextSize = 11 , TextColor3 = _d9 . Muted , TextXAlignment = Enum . TextXAlignment . Left } , _e1 . activity ) _e1 . phase = label ( { Position = UDim2
-. new ( 1 , - 106 , 0 , 8 ) , Size = UDim2 . fromOffset ( 94 , 18 ) , Text = "\073\068\076\069" , TextSize = 11 , Font = Enum . Font . GothamBold , TextColor3 = _d9 . Orange , TextXAlignment = Enum . TextXAlignment . Right } , _e1 . activity ) _e1 . action = label ( { Position = UDim2 . fromOffset ( 12 , 29 ) , Size = UDim2 . new ( 1 , - 24 , 0 , 23 ) , Text = "\082\101\097\100\121\032\116\111\032\115\116\097\114\116" , Font = Enum
-. Font . GothamBold , TextSize = 16 , TextTruncate = Enum . TextTruncate . AtEnd , TextXAlignment = Enum . TextXAlignment . Left } , _e1 . activity ) _e1 . actionDetail = label ( { Position = UDim2 . fromOffset ( 12 , 54 ) , Size = UDim2 . new ( 1 , - 24 , 0 , 18 ) , Text = "\067\104\111\111\115\101\032\097\032\102\101\097\116\117\114\101\032\098\101\108\111\119\046" , TextSize = 12 , TextColor3 = _d9 . Muted , TextTruncate = Enum . TextTruncate . AtEnd , TextXAlignment = Enum . TextXAlignment . Left } , _e1 . activity ) _e1
-. stop = button ( "\083\116\111\112\032\097\108\108\032\097\099\116\105\111\110\115" , UDim2 . new ( 0.5 , - 20 , 0 , 38 ) , UDim2 . new ( 0 , 14 , 1 , - 50 ) , _e1 . chrome ) _e1 . stop . BackgroundColor3 = Color3 . fromRGB ( 105 , 29 , 35 ) _e1 . footer = label ( { Position = UDim2 . new ( 0.5 , 4 , 1 , - 50 ) , Size = UDim2 . new ( 0.5 , - 18 , 0 , 38 ) , Text = "\072\065\076\076\079\087\069\069\078\032\069\068\073\084\073\079\078\n\077\097\100\101\032\098\121\032\082\101\116\114\111" , TextSize =
-11 , TextColor3 = _d9 . Muted } , _e1 . chrome ) _e1 . reopen = button ( "\240\159\142\131" , UDim2 . fromOffset ( 60 , 60 ) , UDim2 . new ( 1 , - 72 , 0.5 , - 30 ) , gui ) _e1 . reopen . Name = "\080\097\110\101\108\066\117\098\098\108\101" _e1 . reopen . TextSize = 28 _e1 . reopen . ZIndex = 20 _e1 . reopen . AutoButtonColor = true _e1 . reopen . BackgroundColor3 = _d9 . Active _e1 . reopen : FindFirstChildWhichIsA ( "\085\073\067\111\114\110\101\114" ) . CornerRadius = UDim . new ( 1
-, 0 ) _e1 . reopen : FindFirstChildWhichIsA ( "\085\073\083\116\114\111\107\101" ) . Thickness = 2 local function window ( name ) local f = create ( "\070\114\097\109\101" , { Name = name , Position = UDim2 . fromOffset ( 14 , 228 ) , Size = UDim2 . new ( 1 , - 28 , 1 , - 292 ) , BackgroundColor3 = _d9 . Background , Active = true } , host ) rounded ( f , 10 ) return f end local main , settings , servers , biomes = window ( "\077\097\105\110" ) , window ( "\083\101\116\116\105\110\103\115"
-) , window ( "\083\101\114\118\101\114\066\114\111\119\115\101\114" ) , window ( "\066\105\111\109\101\115" ) settings . Visible , servers . Visible , biomes . Visible = false , false , false local function header ( parent , title ) local h = create ( "\070\114\097\109\101" , { Size = UDim2 . new ( 1 , 0 , 0 , 48 ) , BackgroundTransparency = 1 , Active = true } , parent ) label ( { Size = UDim2 . new ( 1 , - 94 , 1 , 0 ) , Position = UDim2 . fromOffset ( 12 , 0 ) ,
-Text = title , TextColor3 = _d9 . Orange , Font = Enum . Font . GothamBold , TextSize = 14 , TextXAlignment = Enum . TextXAlignment . Left } , h ) return h end _e1 . header = header ( _e1 . chrome , "\240\159\142\131\032\082\069\084\082\079\032\032\047\032\032\072\065\076\076\079\087\069\069\078\032\072\085\066" ) local mainHeader = header ( main , "\070\065\082\077\032\065\085\084\079\077\065\084\073\079\078" ) local minimize = button ( "\226\136\146" , UDim2 . fromOffset ( 30 , 28 ) , UDim2 . new ( 1 , - 72 , 0 , 10 ) , mainHeader ) local close = button ( "\195\151" , UDim2 . fromOffset (
-30 , 28 ) , UDim2 . new ( 1 , - 36 , 0 , 10 ) , mainHeader ) minimize . Parent , close . Parent = _e1 . header , _e1 . header _e1 . intro = label ( { Position = UDim2 . fromOffset ( 12 , 44 ) , Size = UDim2 . new ( 1 , - 24 , 0 , 48 ) , TextWrapped = true , Text = "\067\104\111\111\115\101\032\119\104\097\116\032\116\111\032\099\111\108\108\101\099\116\046\032\084\104\101\032\115\116\097\116\117\115\032\097\098\111\118\101\032\101\120\112\108\097\105\110\115\032\116\104\101\032\099\117\114\114\101\110\116\032\097\099\116\105\111\110\046" , TextSize = 14 , TextColor3 = _d9 . Muted , TextXAlignment = Enum . TextXAlignment . Left , TextYAlignment = Enum .
-TextYAlignment . Top } , main ) local content = create ( "\083\099\114\111\108\108\105\110\103\070\114\097\109\101" , { Position = UDim2 . fromOffset ( 12 , 100 ) , Size = UDim2 . new ( 1 , - 24 , 1 , - 112 ) , BackgroundTransparency = 1 , BorderSizePixel = 0 , CanvasSize = UDim2 . new ( ) , AutomaticCanvasSize = Enum . AutomaticSize . Y , ScrollBarThickness = 4 , ScrollBarImageColor3 = _d9 . Orange } , main ) create ( "\085\073\076\105\115\116\076\097\121\111\117\116" , { Padding = UDim . new ( 0 , 10 ) , SortOrder = Enum .
-SortOrder . LayoutOrder } , content ) _e1 . legacy = create ( "\070\114\097\109\101" , { Size = UDim2 . new ( ) , Visible = false } , main ) local settingsButton = button ( "\083\101\116\116\105\110\103\115" , UDim2 . new ( ) , UDim2 . new ( ) , _e1 . legacy ) local serversButton = button ( "\083\101\114\118\101\114\115" , UDim2 . new ( ) , UDim2 . new ( ) , _e1 . legacy ) local biomesButton = button ( "\066\105\111\109\101\115" , UDim2 . new ( ) , UDim2 . new ( ) , _e1 . legacy )
-local status = label ( { Size = UDim2 . new ( ) , Text = "\082\101\097\100\121\046" } , _e1 . legacy ) _e1 . info = { Orbs = { Group = "\070\097\114\109" , Setting = "\079\114\098\115" , Description = "\067\111\108\108\101\099\116\032\116\104\101\032\115\101\108\101\099\116\101\100\032\111\114\098\032\099\111\108\111\114\115\044\032\116\104\101\110\032\114\101\116\117\114\110\032\116\111\032\121\111\117\114\032\115\097\118\101\100\032\112\111\115\105\116\105\111\110\046" } , AutoFarm = { Group = "\070\097\114\109" , Setting = "\065\099\111\114\110\115" , Description = "\083\116\097\121\032\111\110\032\097\110\032\065\099\111\114\110\032\117\110\116\105\108\032\105\116\032\100\105\115\097\112\112\101\097\114\115\044\032\116\104\101\110\032\102\105\110\100\032\116\104\101\032\110\101\120\116\032\111\110\101\046" } , KillBugs = { Group = "\067\111\109\098\097\116" , Setting = "\066\117\103\115" , Description = "\070\111\108\108\111\119\032\115\101\108\101\099\116\101\100\032\098\117\103\032\116\121\112\101\115\032\117\110\116\105\108\032\116\104\101\121\032\100\105\115\097\112\112\101\097\114\046\032\067\104\111\111\115\101\032\116\121\112\101\115\032\105\110\032\069\100\105\116\032\115\101\116\116\105\110\103\115\046" } , KillPlayers = { Group = "\067\111\109\098\097\116" , Setting = "\067\111\109\098\097\116" , Description = "\070\111\108\108\111\119\032\116\104\101\032\110\101\097\114\101\115\116\032\108\105\118\105\110\103\032\112\108\097\121\101\114\046\032\083\119\105\116\099\104\032\116\097\114\103\101\116\115\032\119\104\101\110\032\116\104\101\121\032\100\105\101\032\111\114\032\108\101\097\118\101\046" } , AntiPlayer = { Group = "\083\097\102\101\116\121" , Setting
-= "\083\097\102\101\116\121" , Description = "\077\111\118\101\032\116\111\032\097\032\116\101\109\112\111\114\097\114\121\032\112\108\097\116\102\111\114\109\032\119\104\101\110\032\097\110\111\116\104\101\114\032\112\108\097\121\101\114\032\103\101\116\115\032\116\111\111\032\099\108\111\115\101\046" } , AntiVoid = { Group = "\083\097\102\101\116\121" , Setting = "\083\097\102\101\116\121" , Description = "\082\101\116\117\114\110\032\116\111\032\097\032\115\097\118\101\100\032\112\111\115\105\116\105\111\110\032\105\102\032\121\111\117\032\102\097\108\108\032\098\101\108\111\119\032\116\104\101\032\114\101\115\099\117\101\032\104\101\105\103\104\116\046" } , SafeZone = { Group = "\083\097\102\101\116\121" , Setting = "\083\097\102\101\116\121" , Description = "\067\114\101\097\116\101\032\097\032\112\108\097\116\102\111\114\109\032\097\098\111\118\101\032\121\111\117\046\032\084\117\114\110\105\110\103\032\116\104\105\115\032\111\102\102\032\114\101\116\117\114\110\115\032\121\111\117\032\116\111\032\116\104\101\032\115\097\118\101\100\032\115\116\097\114\116\105\110\103\032\112\111\115\105\116\105\111\110\046" } , CustomSpeed = { Group = "\080\108\097\121\101\114" , Setting = "\080\108\097\121\101\114" , Description = "\085\115\101\032\121\111\117\114\032\099\104\111\115\101\110\032\119\097\108\107\105\110\103\032\115\112\101\101\100\046\032\084\117\114\110\105\110\103\032\116\104\105\115\032\111\102\102\032\114\101\115\116\111\114\101\115\032\121\111\117\114\032\112\114\101\118\105\111\117\115\032\115\112\101\101\100\046" } , } local function refreshToggle ( key ) local b = buttons [ key ] if not b then return end b . Text = _b7 [ key ] and "\084\117\114\110\032\111\102\102" or "\084\117\114\110\032\111\110" b . BackgroundColor3 = _b7 [ key ] and _d9 . Active
-or _d9 . Button end local function addToggle ( key , title , order ) local info = _e1 . info [ key ] local card = create ( "\070\114\097\109\101" , { Name = key , Size = UDim2 . new ( 1 , - 8 , 0 , 172 ) , BackgroundColor3 = _d9 . Panel , LayoutOrder = order , Visible = info . Group == _e1 . Group } , content ) rounded ( card , 12 ) label ( { Position = UDim2 . fromOffset ( 14 , 12 ) , Size = UDim2 . new
-( 1 , - 130 , 0 , 25 ) , Text = title , Font = Enum . Font . GothamBold , TextSize = 16 , TextXAlignment = Enum . TextXAlignment . Left } , card ) local description = label ( { Position = UDim2 . fromOffset ( 14 , 46 ) , Size = UDim2 . new ( 1 , - 28 , 0 , 42 ) , Text = info . Description , TextSize = 14 , TextWrapped = true , TextXAlignment = Enum . TextXAlignment . Left , TextYAlignment = Enum . TextYAlignment . Top
-} , card ) local b = button ( "" , UDim2 . fromOffset ( 94 , 34 ) , UDim2 . new ( 1 , - 108 , 0 , 10 ) , card ) local stateLabel = label ( { Position = UDim2 . fromOffset ( 14 , 92 ) , Size = UDim2 . new ( 1 , - 28 , 0 , 20 ) , Text = "\079\070\070\032\226\128\162\032\114\101\097\100\121\032\116\111\032\115\116\097\114\116" , TextSize = 12 , TextColor3 = _d9 . Muted , TextTruncate = Enum . TextTruncate . AtEnd , TextXAlignment = Enum . TextXAlignment . Left } ,
-card ) local detailLabel = label ( { Position = UDim2 . fromOffset ( 14 , 115 ) , Size = UDim2 . new ( 1 , - 28 , 0 , 18 ) , Text = "" , TextSize = 12 , TextColor3 = _d9 . Muted , TextTruncate = Enum . TextTruncate . AtEnd , TextXAlignment = Enum . TextXAlignment . Left } , card ) local configure = button ( "\069\100\105\116\032\115\101\116\116\105\110\103\115" , UDim2 . fromOffset ( 124 , 26 ) , UDim2 . fromOffset ( 14 , 140 ) , card ) _e1 . Cards [ key
-] = { Frame = card , State = stateLabel , Detail = detailLabel , Description = description , Configure = configure } connect ( configure . Activated , function ( ) if _e1 . goToSettings then _e1 . goToSettings ( info . Setting ) end end ) buttons [ key ] , labels [ key ] = b , title refreshToggle ( key ) connect ( b . Activated , function ( ) if key == "\083\097\102\101\090\111\110\101" then if refuge then stopRefuge ( true ) end cancelMotion ( ) if _b7 . SafeZone then _b7 . SafeZone = false
-; leaveSafe ( ) else _b7 . SafeZone = enterSafe ( ) end elseif key == "\065\110\116\105\080\108\097\121\101\114" then _b7 [ key ] = not _b7 [ key ] if not _b7 [ key ] and refuge then stopRefuge ( true ) end _c2 . AntiPlayer = _b7 [ key ] and "\065\110\116\105\032\080\108\097\121\101\114\058\032\109\111\110\105\116\111\114\105\110\103" or "\065\110\116\105\032\080\108\097\121\101\114\058\032\079\070\070" elseif key == "\065\110\116\105\086\111\105\100" then _b7 [ key ] = not _b7 [ key ] _c2 . AntiVoid = _b7 [ key ] and "\065\110\116\105\032\086\111\105\100\058\032\079\078" or "\065\110\116\105\032\086\111\105\100\058\032\079\070\070" elseif key == "\067\117\115\116\111\109\083\112\101\101\100" then _b7 [ key ] = not _b7 [ key ] updateSpeed ( ) else
-_b7 [ key ] = not _b7 [ key ] if key == "\079\114\098\115" or key == "\065\117\116\111\070\097\114\109" or key == "\075\105\108\108\066\117\103\115" or key == "\075\105\108\108\080\108\097\121\101\114\115" then cancelMotion ( ) end end refreshToggle ( key ) end ) end addToggle ( "\079\114\098\115" , "\065\117\116\111\032\070\097\114\109\032\079\114\098\115" , 1 ) addToggle ( "\065\117\116\111\070\097\114\109" , "\065\117\116\111\032\070\097\114\109\032\065\099\111\114\110\115" , 2 ) addToggle ( "\075\105\108\108\066\117\103\115" , "\075\105\108\108\032\066\117\103\115" , 3 ) addToggle ( "\075\105\108\108\080\108\097\121\101\114\115" , "\075\105\108\108\032\080\108\097\121\101\114\115" , 4 ) addToggle ( "\065\110\116\105\080\108\097\121\101\114" , "\065\110\116\105\032\080\108\097\121\101\114" , 5 ) addToggle ( "\065\110\116\105\086\111\105\100" , "\065\110\116\105\032\086\111\105\100" , 6 ) addToggle ( "\083\097\102\101\090\111\110\101" , "\083\097\102\101\032\080\108\097\116\102\111\114\109" , 7 ) addToggle ( "\067\117\115\116\111\109\083\112\101\101\100" , "\087\097\108\107\032\083\112\101\101\100"
-, 8 ) _e1 . guide = label ( { Size = UDim2 . new ( 1 , - 8 , 0 , 0 ) , AutomaticSize = Enum . AutomaticSize . Y , TextSize = 14 , TextWrapped = true , TextXAlignment = Enum . TextXAlignment . Left , TextYAlignment = Enum . TextYAlignment . Top , Visible = false , Text = "\071\069\084\032\083\084\065\082\084\069\068\n\n\049\046\032\079\112\101\110\032\070\097\114\109\032\111\114\032\067\111\109\098\097\116\032\097\110\100\032\116\117\114\110\032\111\110\032\111\110\101\032\109\111\118\101\109\101\110\116\032\102\101\097\116\117\114\101\046\n\n\050\046\032\085\115\101\032\069\100\105\116\032\115\101\116\116\105\110\103\115\032\116\111\032\099\104\111\111\115\101\032\084\101\108\101\112\111\114\116\032\111\114\032\084\119\101\101\110\044\032\115\112\101\101\100\032\097\110\100\032\104\101\105\103\104\116\046\n\n\051\046\032\082\101\097\100\032\067\085\082\082\069\078\084\032\065\067\084\073\079\078\032\116\111\032\115\101\101\032\116\104\101\032\116\097\114\103\101\116\032\111\114\032\119\104\121\032\109\111\118\101\109\101\110\116\032\105\115\032\112\097\117\115\101\100\046\n\n\052\046\032\085\115\101\032\083\116\111\112\032\097\108\108\032\097\099\116\105\111\110\115\032\116\111\032\115\116\111\112\032\097\110\100\032\114\101\108\101\097\115\101\032\109\111\118\101\109\101\110\116\046\032\065\110\116\105\032\086\111\105\100\032\115\116\097\121\115\032\101\110\097\098\108\101\100\046\n\n\080\065\078\069\076\032\067\079\078\084\082\079\076\083\n\084\097\112\032\116\104\101\032\102\108\111\097\116\105\110\103\032\112\117\109\112\107\105\110\032\098\117\098\098\108\101\032\116\111\032\099\108\111\115\101\032\111\114\032\114\101\111\112\101\110\032\116\104\101\032\119\104\111\108\101\032\112\097\110\101\108\032\111\110\032\109\111\098\105\108\101\032\111\114\032\080\067\046\032\079\110\032\080\067\044\032\082\105\103\104\116\032\083\104\105\102\116\032\100\111\101\115\032\116\104\101\032\115\097\109\101\032\116\104\105\110\103\046\032\084\104\101\032\098\117\098\098\108\101\032\115\116\097\121\115\032\118\105\115\105\098\108\101\046\n\n\077\079\086\069\077\069\078\084\032\080\082\073\079\082\073\084\089\n\065\110\116\105\032\080\108\097\121\101\114\032\112\114\111\116\101\099\116\105\111\110\032\062\032\070\111\108\108\111\119\032\080\108\097\121\101\114\115\032\062\032\070\111\108\108\111\119\032\066\117\103\115\032\062\032\065\099\111\114\110\115\032\062\032\079\114\098\115\046\n\065\110\032\101\110\097\098\108\101\100\032\102\101\097\116\117\114\101\032\108\111\119\101\114\032\105\110\032\116\104\105\115\032\108\105\115\116\032\119\097\105\116\115\032\105\116\115\032\116\117\114\110\046\n\n\082\069\084\085\082\078\083\n\070\097\114\109\115\032\115\097\118\101\032\097\032\114\101\116\117\114\110\032\112\111\105\110\116\032\098\101\102\111\114\101\032\109\111\118\105\110\103\046\032\084\117\114\110\105\110\103\032\116\104\101\109\032\111\102\102\032\114\101\116\117\114\110\115\032\121\111\117\032\116\104\101\114\101\046\n\n\070\065\083\084\032\077\079\068\069\n\070\097\115\116\032\118\105\115\105\116\115\032\111\114\098\115\032\102\111\114\032\048\046\048\049\115\046\032\084\104\101\032\103\097\109\101\032\109\097\121\032\109\105\115\115\032\115\111\109\101\032\099\111\108\108\101\099\116\105\111\110\115\046\032\068\097\109\097\103\101\032\097\110\100\032\115\112\097\119\110\032\116\105\109\105\110\103\032\097\114\101\032\103\097\109\101\045\099\111\110\116\114\111\108\108\101\100\046" } , content ) local function showWindow ( selected ) main . Visible , settings . Visible , servers . Visible = selected == main , selected == settings , selected == servers biomes .
-Visible = selected == biomes _e1 . ActiveTab = selected == main and _e1 . Group or selected == settings and "\083\101\116\116\105\110\103\115" or selected == servers and "\083\101\114\118\101\114\115" or "\066\105\111\109\101\115" for name , tab in pairs ( _e1 . Nav ) do tab . BackgroundColor3 = name == _e1 . ActiveTab and _d9 . Active or _d9 . Button end end _e1 . navigate = function ( name ) if name == "\083\101\116\116\105\110\103\115" then showWindow ( settings ) elseif name == "\083\101\114\118\101\114\115" then showWindow ( servers ) elseif name == "\066\105\111\109\101\115" then showWindow ( biomes ) else _e1 . Group
-= name for key , card in pairs ( _e1 . Cards ) do card . Frame . Visible = _e1 . info [ key ] . Group == name end _e1 . guide . Visible = name == "\071\117\105\100\101" for _ , child in ipairs ( mainHeader : GetChildren ( ) ) do if child : IsA ( "\084\101\120\116\076\097\098\101\108" ) then child . Text = name : upper ( ) end end _e1 . intro . Text = ( { Farm = "\067\104\111\111\115\101\032\111\110\101\032\102\097\114\109\046\032\079\116\104\101\114\032\101\110\097\098\108\101\100\032\102\097\114\109\115\032\119\097\105\116\032\116\104\101\105\114\032\116\117\114\110\046" , Combat = "\070\111\108\108\111\119\032\097\032\116\097\114\103\101\116\032\117\115\105\110\103\032\084\101\108\101\112\111\114\116\032\111\114\032\084\119\101\101\110\046\032\084\104\101\032\103\097\109\101\032\099\111\110\116\114\111\108\115\032\098\105\116\101\032\100\097\109\097\103\101\046" , Safety = "\080\114\111\116\101\099\116\105\111\110\032\099\097\110\032\112\097\117\115\101\032\102\097\114\109\105\110\103\032\097\117\116\111\109\097\116\105\099\097\108\108\121\046\032\068\105\115\116\097\110\099\101\115\032\097\114\101\032\101\100\105\116\097\098\108\101\046" , Player = "\067\111\110\116\114\111\108\032\121\111\117\114\032\099\104\097\114\097\099\116\101\114\039\115\032\119\097\108\107\105\110\103\032\115\112\101\101\100\032\105\110\100\101\112\101\110\100\101\110\116\108\121\032\111\102\032\116\119\101\101\110\032\115\112\101\101\100\046" , Guide = "\065\032\113\117\105\099\107\032\101\120\112\108\097\110\097\116\105\111\110\032\111\102\032\116\104\101\032\099\111\110\116\114\111\108\115\032\097\110\100\032\112\114\105\111\114\105\116\105\101\115\046"
-} ) [ name ] or "" content . CanvasPosition = Vector2 . zero showWindow ( main ) end end for index , name in ipairs ( { "\070\097\114\109" , "\067\111\109\098\097\116" , "\083\097\102\101\116\121" , "\080\108\097\121\101\114" , "\066\105\111\109\101\115" , "\083\101\114\118\101\114\115" , "\083\101\116\116\105\110\103\115" , "\071\117\105\100\101" } ) do local column = ( index - 1 ) % 4 local row = math . floor ( ( index - 1 ) / 4 ) local tab = button ( name , UDim2 . new ( 0.25 , - 6 , 0 , 34 ) , UDim2 . new ( column * 0.25 ,
-3 , row * 0.54 , 0 ) , _e1 . navFrame ) _e1 . Nav [ name ] = tab local selected = name connect ( tab . Activated , function ( ) _e1 . navigate ( selected ) end ) end _e1 . navigate ( "\070\097\114\109" ) connect ( _e1 . stop . Activated , function ( ) autoHop = false scanToken = scanToken + 1 for key in pairs ( _b7 ) do _b7 [ key ] = key == "\065\110\116\105\086\111\105\100" end if refuge then stopRefuge ( true ) end cancelMotion ( ) leaveSafe ( ) restoreSpeed
-( ) followedPlayer = nil for key in pairs ( buttons ) do refreshToggle ( key ) end if refreshServerControls then refreshServerControls ( ) end _e1 . ToastUntil = os . clock ( ) + 4 _e1 . Toast = "\065\108\108\032\097\099\116\105\111\110\115\032\115\116\111\112\112\101\100\046\032\065\110\116\105\032\086\111\105\100\032\105\115\032\115\116\105\108\108\032\111\110\046" end ) local settingsHeader = header ( settings , "\240\159\149\184\032\072\065\076\076\079\087\069\069\078\032\083\069\084\084\073\078\071\083" ) local settingsBack = button ( "\066\097\099\107" , UDim2 . fromOffset ( 72 , 28 ) , UDim2 . new ( 1 , - 84 , 0 , 10 ) , settingsHeader ) _e1 . settingNav = create ( "\083\099\114\111\108\108\105\110\103\070\114\097\109\101" , { Position = UDim2 . fromOffset ( 12
-, 48 ) , Size = UDim2 . new ( 1 , - 24 , 0 , 40 ) , BackgroundTransparency = 1 , BorderSizePixel = 0 , CanvasSize = UDim2 . new ( ) , AutomaticCanvasSize = Enum . AutomaticSize . X , ScrollingDirection = Enum . ScrollingDirection . X , ScrollBarThickness = 3 , ScrollBarImageColor3 = _d9 . Purple } , settings ) create ( "\085\073\076\105\115\116\076\097\121\111\117\116" , { FillDirection = Enum . FillDirection . Horizontal , Padding = UDim . new ( 0 , 6 ) , SortOrder = Enum . SortOrder . LayoutOrder } , _e1 .
-settingNav ) local scroll = create ( "\083\099\114\111\108\108\105\110\103\070\114\097\109\101" , { Position = UDim2 . fromOffset ( 12 , 96 ) , Size = UDim2 . new ( 1 , - 24 , 1 , - 158 ) , BackgroundTransparency = 1 , BorderSizePixel = 0 , ScrollBarThickness = 4 , ScrollBarImageColor3 = _d9 . Orange , CanvasSize = UDim2 . new ( ) , AutomaticCanvasSize = Enum . AutomaticSize . Y } , settings ) create ( "\085\073\076\105\115\116\076\097\121\111\117\116" , { Padding = UDim . new ( 0 , 8 ) , SortOrder = Enum . SortOrder . LayoutOrder } ,
-scroll ) local notice = label ( { Position = UDim2 . new ( 0 , 12 , 1 , - 24 ) , Size = UDim2 . new ( 1 , - 24 , 0 , 18 ) , Text = "\078\111\032\109\097\120\105\109\117\109\032\099\097\112\046\032\069\110\116\101\114\032\102\105\110\105\116\101\032\110\117\109\098\101\114\115\046" , TextSize = 10 } , settings ) local modeButton = button ( "" , UDim2 . new ( 1 , - 8 , 0 , 40 ) , UDim2 . new ( ) , scroll ) modeButton . LayoutOrder = 1 local methodButton = button ( "" , UDim2 . new ( 1 , - 8
-, 0 , 40 ) , UDim2 . new ( ) , scroll ) methodButton . LayoutOrder = 2 local acornModeButton = button ( "" , UDim2 . new ( 1 , - 8 , 0 , 40 ) , UDim2 . new ( ) , scroll ) acornModeButton . LayoutOrder = 3 local function refreshModes ( ) modeButton . Text = "\079\114\098\032\083\112\101\101\100\058\032" .. _a4 . OrbMode .. "\032\032\091\067\104\097\110\103\101\093" methodButton . Text = "\079\114\098\032\077\101\116\104\111\100\058\032" .. _a4 . OrbMethod .. "\032\032\091\067\104\097\110\103\101\093" acornModeButton . Text = "\065\099\111\114\110\032\083\112\101\101\100\058\032" .. _a4 . AcornMode .. "\032\032\091\067\104\097\110\103\101\093" if _e1 . MethodButtons then for key , data
-in pairs ( _e1 . MethodButtons ) do data . Button . Text = data . Title .. "\058\032" .. _a4 [ key ] .. "\032\032\091\067\104\097\110\103\101\093" end end end connect ( modeButton . Activated , function ( ) _a4 . OrbMode = ( { Slow = "\077\101\100\105\117\109" , Medium = "\070\097\115\116" , Fast = "\083\108\111\119" , Custom = "\083\108\111\119" } ) [ _a4 . OrbMode ] or "\083\108\111\119" _a4 . OrbDelay = ( { Slow = 0.45 , Medium = 0.15 , Fast = 0.01 } ) [ _a4 . OrbMode ] if fields . OrbDelay then fields . OrbDelay
-. Text = tostring ( _a4 . OrbDelay ) end if not _b7 . AutoFarm and not _b7 . KillBugs and not _b7 . KillPlayers then cancelMotion ( ) end refreshModes ( ) notice . Text = _a4 . OrbMode == "\070\097\115\116" and "\070\097\115\116\058\032\048\046\048\049\115\032\099\111\110\116\097\099\116\059\032\111\110\101\032\118\105\115\105\116\032\112\101\114\032\111\114\098\046" or "\083\112\101\101\100\032\117\112\100\097\116\101\100\046" end ) connect ( methodButton . Activated , function ( ) _a4 . OrbMethod = _a4 . OrbMethod == "\084\101\108\101\112\111\114\116" and "\068\105\114\101\099\116\032\084\119\101\101\110\032\043\032\078\111\099\108\105\112" or "\084\101\108\101\112\111\114\116" if not _b7 . AutoFarm and not _b7 . KillBugs and not _b7 . KillPlayers then cancelMotion ( ) end refreshModes ( ) end ) connect ( acornModeButton . Activated
-, function ( ) _a4 . AcornMode = ( { Slow = "\077\101\100\105\117\109" , Medium = "\070\097\115\116" , Fast = "\083\108\111\119" , Custom = "\083\108\111\119" } ) [ _a4 . AcornMode ] or "\083\108\111\119" _a4 . FarmInterval = ( { Slow = 0.45 , Medium = 0.15 , Fast = 0.01 } ) [ _a4 . AcornMode ] if fields . FarmInterval then fields . FarmInterval . Text = tostring ( _a4 . FarmInterval ) end refreshModes ( ) notice . Text = "\065\099\111\114\110\115\058\032" .. _a4 . AcornMode .. "\032\226\128\162\032\102\111\108\108\111\119\032\105\110\116\101\114\118\097\108\032" .. _a4 . FarmInterval .. "\115\046\032\068\097\109\097\103\101\032\105\115\032\103\097\109\101\045\099\111\110\116\114\111\108\108\101\100\046" end ) refreshModes (
-) local dropdown = create ( "\070\114\097\109\101" , { Size = UDim2 . new ( 1 , - 8 , 0 , 0 ) , AutomaticSize = Enum . AutomaticSize . Y , BackgroundColor3 = _d9 . Panel , LayoutOrder = 4 } , scroll ) rounded ( dropdown ) _e1 . SettingsRows = { { Object = modeButton , Group = "\079\114\098\115" } , { Object = methodButton , Group = "\079\114\098\115" } , { Object = acornModeButton , Group = "\065\099\111\114\110\115" } , { Object = dropdown , Group = "\079\114\098\115" } , } local panelHelp = label
-( { Size = UDim2 . new ( 1 , - 8 , 0 , 64 ) , TextWrapped = true , Text = "\080\065\078\069\076\032\067\079\078\084\082\079\076\083\032\032\240\159\142\131\n\084\097\112\032\116\104\101\032\102\108\111\097\116\105\110\103\032\098\117\098\098\108\101\032\111\110\032\109\111\098\105\108\101\032\111\114\032\080\067\032\116\111\032\111\112\101\110\047\099\108\111\115\101\032\116\104\101\032\112\097\110\101\108\046\032\080\067\032\115\104\111\114\116\099\117\116\058\032\082\105\103\104\116\032\083\104\105\102\116\046" , TextSize = 13 , TextXAlignment = Enum . TextXAlignment . Left } , scroll ) panelHelp . LayoutOrder = 90 table . insert ( _e1 . SettingsRows , { Object = panelHelp , Group = "\080\108\097\121\101\114" } ) _e1 . MethodButtons = { } for index , entry in ipairs ( { { "\065\099\111\114\110\077\101\116\104\111\100" , "\065\099\111\114\110\032\109\111\118\101\109\101\110\116" , "\065\099\111\114\110\115" } , { "\066\117\103\077\101\116\104\111\100" , "\066\117\103\032\109\111\118\101\109\101\110\116" , "\066\117\103\115" } , { "\080\108\097\121\101\114\077\101\116\104\111\100" , "\080\108\097\121\101\114\032\109\111\118\101\109\101\110\116" , "\067\111\109\098\097\116"
-} } ) do local key , title , group = table . unpack ( entry ) local control = button ( "" , UDim2 . new ( 1 , - 8 , 0 , 44 ) , UDim2 . new ( ) , scroll ) control . LayoutOrder = 4 + index _e1 . MethodButtons [ key ] = { Button = control , Title = title } table . insert ( _e1 . SettingsRows , { Object = control , Group = group } ) connect ( control . Activated , function ( ) _a4 [ key ]
-= _a4 [ key ] == "\084\101\108\101\112\111\114\116" and "\084\119\101\101\110" or "\084\101\108\101\112\111\114\116" cancelMotion ( ) refreshModes ( ) notice . Text = title .. "\032\099\104\097\110\103\101\100\032\116\111\032" .. _a4 [ key ] .. "\046" end ) end refreshModes ( ) _e1 . bugPanel = create ( "\070\114\097\109\101" , { Size = UDim2 . new ( 1 , - 8 , 0 , 0 ) , AutomaticSize = Enum . AutomaticSize . Y , BackgroundColor3 = _d9 . Panel , LayoutOrder = 4 } , scroll ) rounded ( _e1 . bugPanel ) table . insert ( _e1 . SettingsRows , { Object =
-_e1 . bugPanel , Group = "\066\117\103\115" } ) create ( "\085\073\076\105\115\116\076\097\121\111\117\116" , { Padding = UDim . new ( 0 , 6 ) , SortOrder = Enum . SortOrder . LayoutOrder } , _e1 . bugPanel ) _e1 . bugButton = button ( "\066\117\103\032\084\121\112\101\115\032\226\150\188" , UDim2 . new ( 1 , 0 , 0 , 44 ) , UDim2 . new ( ) , _e1 . bugPanel ) _e1 . bugButton . LayoutOrder = 1 _e1 . bugBody = create ( "\070\114\097\109\101" , { Size = UDim2 . new ( 1 , 0 , 0 , 0 ) ,
-AutomaticSize = Enum . AutomaticSize . Y , BackgroundTransparency = 1 , Visible = false , LayoutOrder = 2 } , _e1 . bugPanel ) create ( "\085\073\076\105\115\116\076\097\121\111\117\116" , { Padding = UDim . new ( 0 , 6 ) , SortOrder = Enum . SortOrder . LayoutOrder } , _e1 . bugBody ) _e1 . bugActions = create ( "\070\114\097\109\101" , { Size = UDim2 . new ( 1 , 0 , 0 , 36 ) , BackgroundTransparency = 1 , LayoutOrder = 1 } , _e1 . bugBody ) _e1 . bugAll = button ( "\083\101\108\101\099\116\032\065\108\108" , UDim2
-. new ( 0.5 , - 8 , 1 , 0 ) , UDim2 . fromOffset ( 4 , 0 ) , _e1 . bugActions ) _e1 . bugNone = button ( "\083\101\108\101\099\116\032\078\111\110\101" , UDim2 . new ( 0.5 , - 8 , 1 , 0 ) , UDim2 . new ( 0.5 , 4 , 0 , 0 ) , _e1 . bugActions ) _e1 . bugList = create ( "\083\099\114\111\108\108\105\110\103\070\114\097\109\101" , { Size = UDim2 . new ( 1 , 0 , 0 , 180 ) , BackgroundTransparency = 1 , BorderSizePixel = 0 , ScrollBarThickness = 5
-, ScrollBarImageColor3 = _d9 . Orange , CanvasSize = UDim2 . new ( ) , AutomaticCanvasSize = Enum . AutomaticSize . Y , LayoutOrder = 2 } , _e1 . bugBody ) create ( "\085\073\076\105\115\116\076\097\121\111\117\116" , { Padding = UDim . new ( 0 , 5 ) , SortOrder = Enum . SortOrder . Name } , _e1 . bugList ) _e1 . bugEmpty = label ( { Name = "\048\048\048\095\069\109\112\116\121" , Size = UDim2 . new ( 1 , - 8 , 0 , 50 ) , Text = "\087\097\105\116\105\110\103\032\102\111\114\032\098\117\103\032\109\111\100\101\108\115\032\105\110\032\087\111\114\107\115\112\097\099\101\046\066\117\103\115\046\046\046" , TextWrapped = true } , _e1 . bugList
-) _e1 . bugSelected = function ( name ) local selected = _e1 . BugSelection [ name ] if selected == nil then return _e1 . BugDefault end return selected end _e1 . refreshBugRows = function ( ) local selected , total = 0 , 0 for name , info in pairs ( _e1 . KnownBugs ) do total = total + 1 local active = _e1 . bugSelected ( name ) if active then selected = selected + 1 end local row = _e1 . BugRows [ name ] if row then row . Text = ( active and
-"\091\226\156\147\093\032" or "\091\032\093\032" ) .. name .. "\032\032\226\128\162\032\032" .. info . Count .. "\032\097\118\097\105\108\097\098\108\101" row . BackgroundColor3 = active and _d9 . Active or _d9 . Button end end _e1 . bugButton . Text = "\066\117\103\032\084\121\112\101\115\032\226\128\162\032" .. selected .. "\047" .. total .. ( _e1 . bugBody . Visible and "\032\226\150\178" or "\032\226\150\188" ) end _e1 . bugFiltersChanged = function ( ) if _b7 . KillBugs and not _b7 . KillPlayers then cancelMotion ( ) end _e1 . refreshBugRows ( ) end connect ( _e1 . bugButton . Activated , function ( ) _e1 . bugBody . Visible = not
-_e1 . bugBody . Visible ; _e1 . refreshBugRows ( ) end ) connect ( _e1 . bugAll . Activated , function ( ) _e1 . BugDefault = true ; table . clear ( _e1 . BugSelection ) ; _e1 . bugFiltersChanged ( ) end ) connect ( _e1 . bugNone . Activated , function ( ) _e1 . BugDefault = false ; table . clear ( _e1 . BugSelection ) ; _e1 . bugFiltersChanged ( ) end ) _e1 . gatherBugs = function ( container , output ) for _ , object in ipairs ( container : GetChildren (
-) ) do if object : IsA ( "\077\111\100\101\108" ) then if object : FindFirstChildWhichIsA ( "\066\097\115\101\080\097\114\116" , true ) then table . insert ( output , object ) end elseif object : IsA ( "\070\111\108\100\101\114" ) then _e1 . gatherBugs ( object , output ) end end end _e1 . scanBugs = function ( ) for _ , info in pairs ( _e1 . KnownBugs ) do info . Count = 0 end local folder = workspace : FindFirstChild ( "\066\117\103\115" ) local bugs = { } if folder then _e1 . gatherBugs ( folder , bugs ) end
-for _ , bug in ipairs ( bugs ) do local name = bug . Name if not _e1 . KnownBugs [ name ] then _e1 . KnownBugs [ name ] = { Count = 0 } end _e1 . KnownBugs [ name ] . Count = _e1 . KnownBugs [ name ] . Count + 1 if not _e1 . BugRows [ name ] then local row = button ( "" , UDim2 . new ( 1 , - 8 , 0 , 44 ) , UDim2 . new ( ) , _e1 . bugList ) row . Name
-= name _e1 . BugRows [ name ] = row local chosenName = name connect ( row . Activated , function ( ) _e1 . BugSelection [ chosenName ] = not _e1 . bugSelected ( chosenName ) _e1 . bugFiltersChanged ( ) end ) end end _e1 . bugEmpty . Visible = next ( _e1 . KnownBugs ) == nil _e1 . refreshBugRows ( ) end _e1 . acornPanel = create ( "\070\114\097\109\101" , { Size = UDim2 . new ( 1 , - 8 , 0 , 0 ) , AutomaticSize = Enum . AutomaticSize . Y , BackgroundColor3
-= _d9 . Panel , LayoutOrder = 4 } , scroll ) rounded ( _e1 . acornPanel ) table . insert ( _e1 . SettingsRows , { Object = _e1 . acornPanel , Group = "\065\099\111\114\110\115" } ) create ( "\085\073\076\105\115\116\076\097\121\111\117\116" , { Padding = UDim . new ( 0 , 6 ) , SortOrder = Enum . SortOrder . LayoutOrder } , _e1 . acornPanel ) _e1 . acornButton = button ( "\065\099\111\114\110\032\084\121\112\101\115\032\226\150\188" , UDim2 . new ( 1 , 0 , 0 , 44 ) , UDim2 . new ( ) , _e1 . acornPanel ) _e1 .
-acornButton . LayoutOrder = 1 _e1 . acornBody = create ( "\070\114\097\109\101" , { Size = UDim2 . new ( 1 , 0 , 0 , 0 ) , AutomaticSize = Enum . AutomaticSize . Y , BackgroundTransparency = 1 , Visible = false , LayoutOrder = 2 } , _e1 . acornPanel ) create ( "\085\073\076\105\115\116\076\097\121\111\117\116" , { Padding = UDim . new ( 0 , 6 ) , SortOrder = Enum . SortOrder . LayoutOrder } , _e1 . acornBody ) _e1 . acornActions = create ( "\070\114\097\109\101" , { Size = UDim2 . new ( 1 ,
-0 , 0 , 36 ) , BackgroundTransparency = 1 , LayoutOrder = 1 } , _e1 . acornBody ) _e1 . acornAll = button ( "\083\101\108\101\099\116\032\065\108\108" , UDim2 . new ( 0.5 , - 8 , 1 , 0 ) , UDim2 . fromOffset ( 4 , 0 ) , _e1 . acornActions ) _e1 . acornNone = button ( "\083\101\108\101\099\116\032\078\111\110\101" , UDim2 . new ( 0.5 , - 8 , 1 , 0 ) , UDim2 . new ( 0.5 , 4 , 0 , 0 ) , _e1 . acornActions ) _e1 . acornList = create (
-"\083\099\114\111\108\108\105\110\103\070\114\097\109\101" , { Size = UDim2 . new ( 1 , 0 , 0 , 180 ) , BackgroundTransparency = 1 , BorderSizePixel = 0 , ScrollBarThickness = 5 , ScrollBarImageColor3 = _d9 . Orange , CanvasSize = UDim2 . new ( ) , AutomaticCanvasSize = Enum . AutomaticSize . Y , LayoutOrder = 2 } , _e1 . acornBody ) create ( "\085\073\076\105\115\116\076\097\121\111\117\116" , { Padding = UDim . new ( 0 , 5 ) , SortOrder = Enum . SortOrder . Name } , _e1 . acornList ) _e1 . acornEmpty = label ( { Name = "\048\048\048\095\069\109\112\116\121"
-, Size = UDim2 . new ( 1 , - 8 , 0 , 50 ) , Text = "\087\097\105\116\105\110\103\032\102\111\114\032\097\099\111\114\110\032\109\111\100\101\108\115\032\105\110\032\087\111\114\107\115\112\097\099\101\046\066\114\101\097\107\097\098\108\101\115\046\046\046" , TextWrapped = true } , _e1 . acornList ) _e1 . acornSelected = function ( name ) local selected = _e1 . AcornSelection [ name ] if selected == nil then return _e1 . AcornDefault end return selected end _e1 . refreshAcornRows = function ( ) local selected , total = 0 , 0 for name , info in pairs ( _e1 . KnownAcorns ) do total = total + 1 local active = _e1 . acornSelected ( name
-) if active then selected = selected + 1 end local row = _e1 . AcornRows [ name ] if row then row . Text = ( active and "\091\226\156\147\093\032" or "\091\032\093\032" ) .. name .. "\032\032\226\128\162\032\032" .. info . Count .. "\032\097\118\097\105\108\097\098\108\101" row . BackgroundColor3 = active and _d9 . Active or _d9 . Button end end _e1 . acornButton . Text = "\065\099\111\114\110\032\084\121\112\101\115\032\226\128\162\032" .. selected .. "\047" .. total .. ( _e1 . acornBody . Visible and "\032\226\150\178" or "\032\226\150\188" ) end _e1 . acornFiltersChanged = function ( ) if _b7 . AutoFarm and not _b7 . KillPlayers
-and not _b7 . KillBugs then cancelMotion ( ) end _e1 . refreshAcornRows ( ) end connect ( _e1 . acornButton . Activated , function ( ) _e1 . acornBody . Visible = not _e1 . acornBody . Visible ; _e1 . refreshAcornRows ( ) end ) connect ( _e1 . acornAll . Activated , function ( ) _e1 . AcornDefault = true ; table . clear ( _e1 . AcornSelection ) ; _e1 . acornFiltersChanged ( ) end ) connect ( _e1 . acornNone . Activated , function ( ) _e1 . AcornDefault = false ; table . clear
-( _e1 . AcornSelection ) ; _e1 . acornFiltersChanged ( ) end ) _e1 . gatherAcorns = function ( container , output ) for _ , object in ipairs ( container : GetChildren ( ) ) do if object : IsA ( "\077\111\100\101\108" ) then if object : FindFirstChildWhichIsA ( "\066\097\115\101\080\097\114\116" , true ) then table . insert ( output , object ) end elseif object : IsA ( "\070\111\108\100\101\114" ) then _e1 . gatherAcorns ( object , output ) end end end _e1 . scanAcorns = function ( ) for _ , info in pairs ( _e1 . KnownAcorns
-) do info . Count = 0 end local folder = workspace : FindFirstChild ( "\066\114\101\097\107\097\098\108\101\115" ) local acorns = { } if folder then _e1 . gatherAcorns ( folder , acorns ) end for _ , acorn in ipairs ( acorns ) do local name = acorn . Name if not _e1 . KnownAcorns [ name ] then _e1 . KnownAcorns [ name ] = { Count = 0 } end _e1 . KnownAcorns [ name ] . Count = _e1 . KnownAcorns [ name ] . Count + 1 if not _e1 . AcornRows [ name ] then
-local row = button ( "" , UDim2 . new ( 1 , - 8 , 0 , 44 ) , UDim2 . new ( ) , _e1 . acornList ) row . Name = name _e1 . AcornRows [ name ] = row local chosenName = name connect ( row . Activated , function ( ) _e1 . AcornSelection [ chosenName ] = not _e1 . acornSelected ( chosenName ) _e1 . acornFiltersChanged ( ) end ) end end _e1 . acornEmpty . Visible = next ( _e1 . KnownAcorns ) == nil _e1 . refreshAcornRows ( ) end
-create ( "\085\073\076\105\115\116\076\097\121\111\117\116" , { Padding = UDim . new ( 0 , 6 ) , SortOrder = Enum . SortOrder . LayoutOrder } , dropdown ) local colorButton = button ( "\079\114\098\032\067\111\108\111\114\115\032\226\150\188" , UDim2 . new ( 1 , 0 , 0 , 40 ) , UDim2 . new ( ) , dropdown ) colorButton . LayoutOrder = 1 local colorBody = create ( "\070\114\097\109\101" , { Size = UDim2 . new ( 1 , 0 , 0 , 0 ) , AutomaticSize = Enum . AutomaticSize . Y , BackgroundTransparency = 1 , Visible = false , LayoutOrder
-= 2 } , dropdown ) create ( "\085\073\076\105\115\116\076\097\121\111\117\116" , { Padding = UDim . new ( 0 , 6 ) , SortOrder = Enum . SortOrder . LayoutOrder } , colorBody ) local actions = create ( "\070\114\097\109\101" , { Size = UDim2 . new ( 1 , 0 , 0 , 30 ) , BackgroundTransparency = 1 , LayoutOrder = 1 } , colorBody ) local allColors = button ( "\083\101\108\101\099\116\032\065\108\108" , UDim2 . new ( 0.5 , - 8 , 1 , 0 ) , UDim2 . fromOffset ( 4 , 0 ) , actions ) local
-noColors = button ( "\083\101\108\101\099\116\032\078\111\110\101" , UDim2 . new ( 0.5 , - 8 , 1 , 0 ) , UDim2 . new ( 0.5 , 4 , 0 , 0 ) , actions ) local colorList = create ( "\083\099\114\111\108\108\105\110\103\070\114\097\109\101" , { Size = UDim2 . new ( 1 , 0 , 0 , 170 ) , BackgroundTransparency = 1 , BorderSizePixel = 0 , ScrollBarThickness = 4 , ScrollBarImageColor3 = _d9 . Purple , CanvasSize = UDim2 . new ( ) , AutomaticCanvasSize = Enum . AutomaticSize . Y , LayoutOrder = 2 } , colorBody ) create
-( "\085\073\076\105\115\116\076\097\121\111\117\116" , { Padding = UDim . new ( 0 , 5 ) , SortOrder = Enum . SortOrder . Name } , colorList ) local emptyColors = label ( { Name = "\048\048\048\095\069\109\112\116\121" , Size = UDim2 . new ( 1 , - 8 , 0 , 42 ) , Text = "\087\097\105\116\105\110\103\032\102\111\114\032\087\111\114\107\115\112\097\099\101\046\079\114\098\115\046\046\046" , TextWrapped = true } , colorList ) refreshColors = function ( ) local count , total = 0 , 0 for key , info in pairs ( knownColors ) do total = total + 1 local chosen = colorSelected ( key ) if chosen
-then count = count + 1 end local row = colorRows [ key ] if row then row . Text = ( chosen and "\091\226\156\147\093\032" or "\091\032\093\032" ) .. colorName ( info . Color ) .. "\032\226\128\162\032" .. info . Count .. "\n\082\071\066\032" .. key row . BackgroundColor3 = chosen and _d9 . Active or _d9 . Button end end colorButton . Text = "\079\114\098\032\067\111\108\111\114\115\032\226\128\162\032" .. count .. "\047" .. total .. ( colorBody . Visible and "\032\226\150\178" or "\032\226\150\188" ) end local function filtersChanged ( ) if not _b7 . AutoFarm and not _b7 . KillBugs and not _b7
-. KillPlayers then cancelMotion ( ) end refreshColors ( ) end connect ( colorButton . Activated , function ( ) colorBody . Visible = not colorBody . Visible ; refreshColors ( ) end ) connect ( allColors . Activated , function ( ) defaultColorSelected = true ; table . clear ( selectedColors ) ; filtersChanged ( ) end ) connect ( noColors . Activated , function ( ) defaultColorSelected = false ; table . clear ( selectedColors ) ; filtersChanged ( ) end ) local function scanColors ( ) for _ , info in pairs ( knownColors ) do info
-. Count = 0 end local folder , objects = workspace : FindFirstChild ( "\079\114\098\115" ) , { } if folder then gather ( folder , objects ) end for _ , object in ipairs ( objects ) do local key , color = colorInfo ( object ) if key then if not knownColors [ key ] then knownColors [ key ] = { Color = color , Count = 0 } end knownColors [ key ] . Count = knownColors [ key ] . Count + 1 if not colorRows [ key ] then local row = create (
-"\070\114\097\109\101" , { Name = key , Size = UDim2 . new ( 1 , - 8 , 0 , 46 ) , BackgroundTransparency = 1 } , colorList ) local swatch = create ( "\070\114\097\109\101" , { Size = UDim2 . fromOffset ( 24 , 24 ) , Position = UDim2 . fromOffset ( 4 , 11 ) , BackgroundColor3 = color } , row ) rounded ( swatch , 6 ) local choice = button ( "" , UDim2 . new ( 1 , - 36 , 1 , 0 ) , UDim2 . fromOffset ( 34 ,
-0 ) , row ) choice . TextSize = 11 colorRows [ key ] = choice local selectedKey = key connect ( choice . Activated , function ( ) selectedColors [ selectedKey ] = not colorSelected ( selectedKey ) ; filtersChanged ( ) end ) end end end emptyColors . Visible = next ( knownColors ) == nil refreshColors ( ) end local specs = { { "\087\097\108\107\083\112\101\101\100" , "\067\104\097\114\097\099\116\101\114\032\087\097\108\107\032\083\112\101\101\100\032\040\115\116\117\100\115\047\115\101\099\111\110\100\041" , "\069\110\097\098\108\101\032\067\117\115\116\111\109\032\087\097\108\107\032\083\112\101\101\100\046\032\090\101\114\111\032\111\114\032\112\111\115\105\116\105\118\101\059\032\110\111\032\109\097\120\105\109\117\109\032\099\097\112\046" } , { "\079\114\098\068\101\108\097\121" , "\079\114\098\032\067\111\110\116\097\099\116\032\068\101\108\097\121\032\040\115\101\099\111\110\100\115\041" , "\070\097\115\116\032\117\115\101\115\032\048\046\048\049\115\046\032\069\100\105\116\105\110\103\032\115\101\108\101\099\116\115\032\067\117\115\116\111\109\046" } , { "\065\116\116\101\109\112\116\115\080\101\114\079\114\098" , "\065\116\116\101\109\112\116\115\032\080\101\114\032\079\114\098" , "\070\097\115\116\032\118\105\115\105\116\115\032\101\097\099\104\032\111\114\098\032\111\110\099\101\046" , "\105\110\116\101\103\101\114" } , { "\083\119\101\101\112\073\110\116\101\114\118\097\108" , "\084\097\114\103\101\116\032\083\101\097\114\099\104\032\073\110\116\101\114\118\097\108\032\040\115\101\099\111\110\100\115\041" , "\068\111\101\115\032\110\111\116\032\099\104\097\110\103\101\032\116\104\101\032\103\097\109\101\039\115\032\115\112\097\119\110\032\116\105\109\101\114\046" } ,
-{ "\084\119\101\101\110\083\112\101\101\100" , "\068\105\114\101\099\116\032\084\119\101\101\110\032\083\112\101\101\100\032\040\115\116\117\100\115\047\115\101\099\111\110\100\041" , "\077\117\115\116\032\098\101\032\103\114\101\097\116\101\114\032\116\104\097\110\032\122\101\114\111\046" , "\112\111\115\105\116\105\118\101" } , { "\070\097\114\109\073\110\116\101\114\118\097\108" , "\065\099\111\114\110\032\070\111\108\108\111\119\032\073\110\116\101\114\118\097\108\032\040\115\101\099\111\110\100\115\041" , "\069\100\105\116\105\110\103\032\115\101\108\101\099\116\115\032\067\117\115\116\111\109\046\032\083\116\097\121\115\032\117\110\116\105\108\032\116\104\101\032\116\097\114\103\101\116\032\100\105\115\097\112\112\101\097\114\115\046" } , { "\070\097\114\109\079\102\102\115\101\116" , "\065\099\111\114\110\032\069\120\116\114\097\032\072\101\105\103\104\116\032\040\115\116\117\100\115\041" , "\078\101\103\097\116\105\118\101\032\118\097\108\117\101\115\032\097\108\108\111\119\101\100\046" , "\115\105\103\110\101\100" } , { "\065\099\111\114\110\084\119\101\101\110\083\112\101\101\100" , "\065\099\111\114\110\032\084\119\101\101\110\032\083\112\101\101\100\032\040\115\116\117\100\115\047\115\101\099\111\110\100\041" , "\085\115\101\100\032\111\110\108\121\032\119\104\101\110\032\065\099\111\114\110\032\109\111\118\101\109\101\110\116\032\105\115\032\084\119\101\101\110\046" , "\112\111\115\105\116\105\118\101" } , { "\066\117\103\072\101\105\103\104\116" , "\066\117\103\032\067\111\110\116\097\099\116\032\072\101\105\103\104\116\032\040\115\116\117\100\115\041" , "\068\101\102\097\117\108\116\058\032\049\046\053\046\032\076\097\114\103\101\032\104\101\105\103\104\116\115\032\109\097\121\032\112\117\116\032\121\111\117\032\111\117\116\115\105\100\101\032\098\105\116\101\032\114\097\110\103\101\046" } , { "\066\117\103\073\110\116\101\114\118\097\108" , "\066\117\103\032\067\111\110\116\097\099\116\032\073\110\116\101\114\118\097\108\032\040\115\101\099\111\110\100\115\041" , "\068\101\102\097\117\108\116\058\032\048\046\049\053\115\046\032\067\104\097\114\097\099\116\101\114\032\115\116\097\121\115\032\117\110\097\110\099\104\111\114\101\100\032\119\104\105\108\101\032\098\105\116\105\110\103\046" } , { "\066\117\103\084\119\101\101\110\083\112\101\101\100" , "\066\117\103\032\084\119\101\101\110\032\083\112\101\101\100\032\040\115\116\117\100\115\047\115\101\099\111\110\100\041" , "\085\115\101\100\032\111\110\108\121\032\119\104\101\110\032\066\117\103\032\109\111\118\101\109\101\110\116\032\105\115\032\084\119\101\101\110\046" , "\112\111\115\105\116\105\118\101" } , { "\080\108\097\121\101\114\070\111\108\108\111\119\072\101\105\103\104\116" , "\080\108\097\121\101\114\032\070\111\108\108\111\119\032\072\101\105\103\104\116\032\040\115\116\117\100\115\041" , "\068\101\102\097\117\108\116\058\032\053\032\115\116\117\100\115\032\097\098\111\118\101\032\116\104\101\032\112\108\097\121\101\114\039\115\032\114\111\111\116\046" } , { "\080\108\097\121\101\114\070\111\108\108\111\119\073\110\116\101\114\118\097\108" , "\080\108\097\121\101\114\032\070\111\108\108\111\119\032\073\110\116\101\114\118\097\108\032\040\115\101\099\111\110\100\115\041" , "\065\110\099\104\111\114\101\100\032\116\114\097\099\107\105\110\103\046\032\065\110\116\105\032\080\108\097\121\101\114\032\105\103\110\111\114\101\115\032\116\104\105\115\032\116\097\114\103\101\116\046" } , { "\080\108\097\121\101\114\084\119\101\101\110\083\112\101\101\100" , "\080\108\097\121\101\114\032\084\119\101\101\110\032\083\112\101\101\100\032\040\115\116\117\100\115\047\115\101\099\111\110\100\041" , "\084\119\101\101\110\032\116\114\097\099\107\105\110\103\032\115\116\097\121\115\032\117\110\097\110\099\104\111\114\101\100\046" , "\112\111\115\105\116\105\118\101" } , { "\080\108\097\121\101\114\084\114\105\103\103\101\114" , "\065\110\116\105\032\080\108\097\121\101\114\032\084\114\105\103\103\101\114\032\068\105\115\116\097\110\099\101" , "\068\101\102\097\117\108\116\058\032\050\048\032\115\116\117\100\115\046" } , { "\080\108\097\121\101\114\082\101\108\101\097\115\101"
-, "\065\110\116\105\032\080\108\097\121\101\114\032\082\101\108\101\097\115\101\032\068\105\115\116\097\110\099\101" , "\077\101\097\115\117\114\101\100\032\102\114\111\109\032\116\104\101\032\116\114\105\103\103\101\114\032\108\111\099\097\116\105\111\110\046\032\068\101\102\097\117\108\116\058\032\053\048\048\046" } , { "\065\110\116\105\072\101\105\103\104\116" , "\065\110\116\105\032\080\108\097\121\101\114\032\080\108\097\116\102\111\114\109\032\072\101\105\103\104\116" , "\068\101\102\097\117\108\116\058\032\053\048\032\115\116\117\100\115\046" } , { "\086\111\105\100\072\101\105\103\104\116" , "\065\110\116\105\032\086\111\105\100\032\082\101\115\099\117\101\032\089" , "\087\111\114\108\100\032\089\032\099\111\111\114\100\105\110\097\116\101\032\102\111\114\032\114\101\115\099\117\101\046" , "\115\105\103\110\101\100" } , { "\083\097\102\101\072\101\105\103\104\116" , "\083\097\102\101\032\090\111\110\101\032\072\101\105\103\104\116\032\040\115\116\117\100\115\041" , "\065\112\112\108\105\101\100\032\111\110\032\110\101\120\116\032\097\099\116\105\118\097\116\105\111\110\046" } , { "\083\101\114\118\101\114\082\101\116\114\121\068\101\108\097\121" , "\065\117\116\111\032\072\111\112\032\082\101\116\114\121\032\068\101\108\097\121\032\040\115\101\099\111\110\100\115\041" , "\087\097\105\116\032\098\101\116\119\101\101\110\032\099\111\109\112\108\101\116\101\100\032\115\099\097\110\115\032\119\105\116\104\111\117\116\032\109\097\116\099\104\101\115\046" , "\112\111\115\105\116\105\118\101" } , } for order , spec in ipairs ( specs ) do local key , title , hint , kind = table . unpack ( spec ) local row = create ( "\070\114\097\109\101" , { Size = UDim2 . new ( 1 , - 8 , 0 , 106 ) , BackgroundColor3 = _d9 . Panel , LayoutOrder =
-order + 10 } , scroll ) rounded ( row ) local groups = { WalkSpeed = "\080\108\097\121\101\114" , OrbDelay = "\079\114\098\115" , AttemptsPerOrb = "\079\114\098\115" , TweenSpeed = "\079\114\098\115" , SweepInterval = "\071\101\110\101\114\097\108" , FarmInterval = "\065\099\111\114\110\115" , FarmOffset = "\065\099\111\114\110\115" , AcornTweenSpeed = "\065\099\111\114\110\115" , BugHeight = "\066\117\103\115" , BugInterval = "\066\117\103\115" , BugTweenSpeed = "\066\117\103\115" , PlayerFollowHeight = "\067\111\109\098\097\116" , PlayerFollowInterval = "\067\111\109\098\097\116" , PlayerTweenSpeed = "\067\111\109\098\097\116" , PlayerTrigger = "\083\097\102\101\116\121" , PlayerRelease = "\083\097\102\101\116\121" , AntiHeight = "\083\097\102\101\116\121" , VoidHeight = "\083\097\102\101\116\121" , SafeHeight = "\083\097\102\101\116\121" , ServerRetryDelay = "\083\101\114\118\101\114\115" } table . insert ( _e1
-. SettingsRows , { Object = row , Group = groups [ key ] or "\071\101\110\101\114\097\108" } ) label ( { Position = UDim2 . fromOffset ( 12 , 8 ) , Size = UDim2 . new ( 1 , - 24 , 0 , 26 ) , Text = title , Font = Enum . Font . GothamBold , TextSize = 14 , TextWrapped = true , TextXAlignment = Enum . TextXAlignment . Left } , row ) local box = create ( "\084\101\120\116\066\111\120" , { Position = UDim2 . fromOffset ( 12 , 39 ) , Size =
-UDim2 . new ( 1 , - 24 , 0 , 30 ) , BackgroundColor3 = _d9 . Button , TextColor3 = _d9 . Text , Font = Enum . Font . Gotham , TextSize = 14 , Text = tostring ( _a4 [ key ] ) , ClearTextOnFocus = false } , row ) rounded ( box , 5 ) fields [ key ] = box label ( { Position = UDim2 . fromOffset ( 12 , 74 ) , Size = UDim2 . new ( 1 , - 24 , 0 , 28 ) , Text = hint
-, TextSize = 12 , TextWrapped = true , TextXAlignment = Enum . TextXAlignment . Left } , row ) connect ( box . FocusLost , function ( ) local value = tonumber ( ( box . Text : gsub ( "\044" , "\046" ) ) ) local invalid = not value or value ~= value or math . abs ( value ) == math . huge if not invalid then if kind == "\105\110\116\101\103\101\114" then invalid = value < 1 or value % 1 ~= 0 elseif kind == "\112\111\115\105\116\105\118\101" then invalid = value <= 0 elseif kind ~=
-"\115\105\103\110\101\100" then invalid = value < 0 end end if invalid then box . Text = tostring ( _a4 [ key ] ) ; box . TextColor3 = Color3 . fromRGB ( 255 , 130 , 130 ) notice . Text = "\073\110\118\097\108\105\100\032\110\117\109\098\101\114\046\032\084\104\101\032\112\114\101\118\105\111\117\115\032\118\097\108\117\101\032\119\097\115\032\107\101\112\116\046" return end _a4 [ key ] = value box . TextColor3 = _d9 . Text box . Text = tostring ( value ) if key == "\087\097\108\107\083\112\101\101\100" then updateSpeed ( ) end if key == "\079\114\098\068\101\108\097\121" then _a4 . OrbMode = "\067\117\115\116\111\109" ; refreshModes ( ) end if key == "\070\097\114\109\073\110\116\101\114\118\097\108" then _a4 . AcornMode = "\067\117\115\116\111\109"
-; refreshModes ( ) end notice . Text = "\083\101\116\116\105\110\103\115\032\117\112\100\097\116\101\100\046" end ) end local reset = button ( "\082\101\115\116\111\114\101\032\068\101\102\097\117\108\116\115" , UDim2 . new ( 1 , - 24 , 0 , 28 ) , UDim2 . new ( 0 , 12 , 1 , - 58 ) , settings ) connect ( reset . Activated , function ( ) for key , value in pairs ( defaults ) do _a4 [ key ] = value ; if fields [ key ] then fields [ key ] . Text = tostring ( value ) end end defaultColorSelected = true _e1 .
-BugDefault = true table . clear ( _e1 . BugSelection ) _e1 . refreshBugRows ( ) _e1 . AcornDefault = true table . clear ( _e1 . AcornSelection ) _e1 . refreshAcornRows ( ) if _b7 . AutoFarm and not _b7 . KillPlayers and not _b7 . KillBugs then cancelMotion ( ) end table . clear ( selectedColors ) filtersChanged ( ) ; refreshModes ( ) notice . Text = "\068\101\102\097\117\108\116\032\115\101\116\116\105\110\103\115\032\114\101\115\116\111\114\101\100\046" end ) _e1 . settingButtons = { } _e1 . setSettingsFilter = function ( group ) _e1 . SettingTab = group for _ , entry in ipairs ( _e1
-. SettingsRows ) do entry . Object . Visible = group == "\065\108\108" or entry . Group == group or ( entry . Group == "\071\101\110\101\114\097\108" and ( group == "\079\114\098\115" or group == "\065\099\111\114\110\115" or group == "\067\111\109\098\097\116" ) ) end for name , control in pairs ( _e1 . settingButtons ) do control . BackgroundColor3 = name == group and _d9 . Active or _d9 . Button end scroll . CanvasPosition = Vector2 . zero end for index , name in ipairs ( { "\079\114\098\115" , "\065\099\111\114\110\115" , "\066\117\103\115" , "\067\111\109\098\097\116" , "\083\097\102\101\116\121" , "\080\108\097\121\101\114" , "\083\101\114\118\101\114\115" ,
-"\065\108\108" } ) do local control = button ( name , UDim2 . fromOffset ( 92 , 34 ) , UDim2 . new ( ) , _e1 . settingNav ) control . LayoutOrder = index _e1 . settingButtons [ name ] = control local group = name connect ( control . Activated , function ( ) _e1 . setSettingsFilter ( group ) end ) end _e1 . setSettingsFilter ( "\079\114\098\115" ) _e1 . goToSettings = function ( group ) _e1 . setSettingsFilter ( group ) _e1 . navigate ( "\083\101\116\116\105\110\103\115" ) end local serverHeader = header ( servers , "\240\159\166\135\032\072\065\076\076\079\087\069\069\078\032\083\069\082\086\069\082\032\072\079\080"
-) local serverBack = button ( "\066\097\099\107" , UDim2 . fromOffset ( 72 , 28 ) , UDim2 . new ( 1 , - 84 , 0 , 10 ) , serverHeader ) label ( { Position = UDim2 . fromOffset ( 12 , 52 ) , Size = UDim2 . new ( 1 , - 24 , 0 , 45 ) , TextWrapped = true , Text = "\080\085\066\076\073\067\032\083\069\082\086\069\082\083\032\226\128\162\032\049\045\051\032\080\076\065\089\069\082\083\n\083\111\114\116\101\100\032\098\121\032\108\111\119\101\115\116\032\112\108\097\121\101\114\032\099\111\117\110\116\046\032\067\111\117\110\116\115\032\109\097\121\032\099\104\097\110\103\101\046" , TextColor3 = _d9 . Orange } , servers ) local scanButton = button ( "\083\099\097\110\032\083\101\114\118\101\114\115" , UDim2 . new ( 0.5 , - 16 , 0 , 36 )
-, UDim2 . fromOffset ( 12 , 104 ) , servers ) local autoButton = button ( "\065\117\116\111\032\072\111\112\032\091\079\070\070\093" , UDim2 . new ( 0.5 , - 16 , 0 , 36 ) , UDim2 . new ( 0.5 , 4 , 0 , 104 ) , servers ) local hopStatus = label ( { Position = UDim2 . fromOffset ( 12 , 148 ) , Size = UDim2 . new ( 1 , - 24 , 0 , 70 ) , Text = serverMessage , TextWrapped = true , TextSize = 11 } , servers ) local serverList = create
-( "\083\099\114\111\108\108\105\110\103\070\114\097\109\101" , { Position = UDim2 . fromOffset ( 12 , 226 ) , Size = UDim2 . new ( 1 , - 24 , 1 , - 270 ) , BackgroundTransparency = 1 , BorderSizePixel = 0 , ScrollBarThickness = 4 , ScrollBarImageColor3 = _d9 . Orange , CanvasSize = UDim2 . new ( ) , AutomaticCanvasSize = Enum . AutomaticSize . Y } , servers ) create ( "\085\073\076\105\115\116\076\097\121\111\117\116" , { Padding = UDim . new ( 0 , 8 ) , SortOrder = Enum . SortOrder . LayoutOrder } , serverList ) label ( { Position
-= UDim2 . new ( 0 , 12 , 1 , - 36 ) , Size = UDim2 . new ( 1 , - 24 , 0 , 26 ) , TextSize = 10 , TextWrapped = true , Text = "\067\117\114\114\101\110\116\032\115\101\114\118\101\114\032\101\120\099\108\117\100\101\100\032\226\128\162\032\082\101\045\114\117\110\032\116\104\101\032\115\099\114\105\112\116\032\097\102\116\101\114\032\104\111\112\112\105\110\103\046" } , servers ) local function setServerMessage ( message ) serverMessage = message if _f3 then hopStatus . Text = message end end refreshServerControls = function ( ) scanButton . Text = scanBusy and "\083\116\111\112\032\083\099\097\110" or "\083\099\097\110\032\083\101\114\118\101\114\115" autoButton . Text = autoHop and "\065\117\116\111\032\072\111\112\032\091\079\078\093" or "\065\117\116\111\032\072\111\112\032\091\079\070\070\093" autoButton . BackgroundColor3 = autoHop and _d9 . Active or _d9 .
-Button end local function httpGet ( url ) local candidates = { } if type ( request ) == "\102\117\110\099\116\105\111\110" then table . insert ( candidates , request ) end if type ( http_request ) == "\102\117\110\099\116\105\111\110" then table . insert ( candidates , http_request ) end if type ( syn ) == "\116\097\098\108\101" and type ( syn . request ) == "\102\117\110\099\116\105\111\110" then table . insert ( candidates , syn . request ) end if type ( http ) == "\116\097\098\108\101" and type ( http . request ) == "\102\117\110\099\116\105\111\110" then table . insert ( candidates , http .
-request ) end if type ( fluxus ) == "\116\097\098\108\101" and type ( fluxus . request ) == "\102\117\110\099\116\105\111\110" then table . insert ( candidates , fluxus . request ) end local requestFunction = candidates [ 1 ] if type ( requestFunction ) == "\102\117\110\099\116\105\111\110" then local response = requestFunction ( { Url = url , Method = "\071\069\084" } ) if type ( response ) ~= "\116\097\098\108\101" then error ( "\072\084\084\080\032\114\101\113\117\101\115\116\032\114\101\116\117\114\110\101\100\032\110\111\032\114\101\115\112\111\110\115\101" ) end local code = tonumber ( response . StatusCode or response . Status ) if code and ( code < 200 or code >= 300 ) then
-error ( "\072\084\084\080\032" .. code ) end if type ( response . Body ) ~= "\115\116\114\105\110\103" then error ( "\072\084\084\080\032\114\101\115\112\111\110\115\101\032\098\111\100\121\032\105\115\032\109\105\115\115\105\110\103" ) end return response . Body end local ok , body = pcall ( function ( ) return game : HttpGet ( url ) end ) if not ok then error ( "\072\084\084\080\032\117\110\097\118\097\105\108\097\098\108\101\032\111\114\032\098\108\111\099\107\101\100\058\032" .. tostring ( body ) ) end return body end local function scanRound ( ) if scanBusy or not _f3 then return false end scanBusy = true scanToken = scanToken + 1 local token = scanToken serverResults = { } renderServers ( ) refreshServerControls ( ) local
-cursor , seen , cursors = nil , { } , { } local pages , inspected = 0 , 0 local scanError repeat local url = "\104\116\116\112\115\058\047\047\103\097\109\101\115\046\114\111\098\108\111\120\046\099\111\109\047\118\049\047\103\097\109\101\115\047" .. tostring ( game . PlaceId ) .. "\047\115\101\114\118\101\114\115\047\080\117\098\108\105\099\063\115\111\114\116\079\114\100\101\114\061\065\115\099\038\108\105\109\105\116\061\049\048\048\038\101\120\099\108\117\100\101\070\117\108\108\071\097\109\101\115\061\116\114\117\101" if cursor then url = url .. "\038\099\117\114\115\111\114\061" .. HttpService : UrlEncode ( cursor ) end local decoded for attempt = 1 , 3 do if not _f3 or token ~= scanToken then break end local ok , result = pcall ( function ( ) return HttpService : JSONDecode ( httpGet ( url ) ) end ) if ok and type ( result
-) == "\116\097\098\108\101" and type ( result . data ) == "\116\097\098\108\101" then decoded = result break end scanError = ok and "\085\110\101\120\112\101\099\116\101\100\032\115\101\114\118\101\114\032\065\080\073\032\114\101\115\112\111\110\115\101" or tostring ( result ) if attempt < 3 then setServerMessage ( "\082\101\113\117\101\115\116\032\102\097\105\108\101\100\046\032\082\101\116\114\121\105\110\103\032" .. attempt .. "\047\051\046\046\046" ) local deadline = os . clock ( ) + 2 ^ attempt while _f3 and token == scanToken and os . clock ( ) < deadline do task . wait ( 0.1 ) end end end if not _f3 or token ~= scanToken or not decoded then break end scanError = nil pages = pages + 1 for _
-, server in ipairs ( decoded . data ) do inspected = inspected + 1 local count = tonumber ( server . playing ) local capacity = tonumber ( server . maxPlayers ) if type ( server . id ) == "\115\116\114\105\110\103" and count and capacity and server . id ~= game . JobId and count >= 1 and count <= 3 and count < capacity and not seen [ server . id ] then seen [ server . id ] = true table . insert ( serverResults , { id = server . id , playing = count ,
-maxPlayers = capacity } ) end end table . sort ( serverResults , function ( a , b ) if a . playing ~= b . playing then return a . playing < b . playing end return a . id < b . id end ) renderServers ( ) setServerMessage ( "\083\099\097\110\110\105\110\103\032\226\128\162\032\112\097\103\101\115\058\032" .. pages .. "\032\226\128\162\032\099\104\101\099\107\101\100\058\032" .. inspected .. "\n\077\097\116\099\104\101\115\032\119\105\116\104\032\049\045\051\032\112\108\097\121\101\114\115\058\032" .. # serverResults ) if autoHop and # serverResults > 0 then break end cursor = decoded . nextPageCursor if type ( cursor ) ~= "\115\116\114\105\110\103" or cursor == "" or cursors [ cursor ] then cursor = nil
-end if cursor then cursors [ cursor ] = true local deadline = os . clock ( ) + 0.8 while _f3 and token == scanToken and os . clock ( ) < deadline do task . wait ( 0.1 ) end end until not cursor or not _f3 or token ~= scanToken local cancelled = token ~= scanToken scanBusy = false if _f3 then refreshServerControls ( ) if hopPending then elseif cancelled then setServerMessage ( "\083\099\097\110\032\115\116\111\112\112\101\100\032\226\128\162\032\109\097\116\099\104\101\115\058\032" .. # serverResults ) elseif scanError then setServerMessage ( "\083\099\097\110\032\102\097\105\108\101\100\058\032" .. scanError ) else setServerMessage ( "\083\099\097\110\032\102\105\110\105\115\104\101\100\032\226\128\162\032" .. # serverResults .. "\032\109\097\116\099\104\105\110\103\032\115\101\114\118\101\114\115\n\049\045\051\032\112\108\097\121\101\114\115\032\098\101\102\111\114\101\032\106\111\105\110\105\110\103\032\226\128\162\032\108\111\119\101\115\116\032\099\111\117\110\116\032\102\105\114\115\116" )
-end end return not cancelled and not scanError end local function runScan ( ) local ok , result = pcall ( scanRound ) if not ok then scanBusy = false if _f3 then refreshServerControls ( ) setServerMessage ( "\083\099\097\110\032\102\097\105\108\101\100\058\032" .. tostring ( result ) ) end return false end return result end local function joinServer ( server ) if not _f3 or hopPending then return false end if server . id == game . JobId then return false end visitedServers [ server . id ] = true hopPending = { Id = server . id , Started = os .
-clock ( ) } if scanBusy then scanToken = scanToken + 1 end if refuge then stopRefuge ( true ) end cancelMotion ( ) setServerMessage ( "\074\111\105\110\105\110\103\032" .. server . id : sub ( 1 , 8 ) .. "\046\046\046\032\226\128\162\032" .. server . playing .. "\032\112\108\097\121\101\114\115\032\105\110\032\108\097\115\116\032\115\099\097\110" ) renderServers ( ) local ok , err = pcall ( function ( ) TeleportService : TeleportToPlaceInstance ( game . PlaceId , server . id , _h5 ) end ) if not ok then hopPending = nil setServerMessage ( "\074\111\105\110\032\102\097\105\108\101\100\058\032" .. tostring ( err ) ) renderServers ( ) end return ok end renderServers
-= function ( ) for _ , connection in ipairs ( serverRowConnections ) do connection : Disconnect ( ) end table . clear ( serverRowConnections ) for _ , child in ipairs ( serverList : GetChildren ( ) ) do if child : IsA ( "\071\117\105\079\098\106\101\099\116" ) then child : Destroy ( ) end end if # serverResults == 0 then label ( { Size = UDim2 . new ( 1 , - 8 , 0 , 65 ) , Text = "\078\111\032\109\097\116\099\104\101\115\032\121\101\116\046\n\080\114\101\115\115\032\083\099\097\110\032\083\101\114\118\101\114\115\032\111\114\032\101\110\097\098\108\101\032\065\117\116\111\032\072\111\112\046" , TextWrapped = true , TextColor3 = _d9 . Muted } , serverList ) end for i
-, server in ipairs ( serverResults ) do local row = create ( "\070\114\097\109\101" , { Size = UDim2 . new ( 1 , - 8 , 0 , 70 ) , BackgroundColor3 = _d9 . Panel , LayoutOrder = i } , serverList ) rounded ( row ) label ( { Position = UDim2 . fromOffset ( 10 , 5 ) , Size = UDim2 . new ( 1 , - 94 , 1 , - 10 ) , Text = string . format ( "\035\037\100\032\226\128\162\032\037\100\047\037\100\032\112\108\097\121\101\114\115\n\073\068\058\032\037\115\046\046\046\n\037\115" , i , server . playing , server . maxPlayers , server .
-id : sub ( 1 , 12 ) , visitedServers [ server . id ] and "\080\114\101\118\105\111\117\115\108\121\032\097\116\116\101\109\112\116\101\100" or "\080\117\098\108\105\099\032\115\101\114\118\101\114" ) , TextSize = 11 , TextXAlignment = Enum . TextXAlignment . Left } , row ) local join = button ( hopPending and hopPending . Id == server . id and "\074\111\105\110\105\110\103" or "\074\111\105\110" , UDim2 . fromOffset ( 70 , 34 ) , UDim2 . new ( 1 , - 80 , 0.5 , - 17 ) , row ) local chosen = server table . insert ( serverRowConnections , join . Activated : Connect ( function ( )
-joinServer ( chosen ) end ) ) end end connect ( scanButton . Activated , function ( ) if scanBusy then scanToken = scanToken + 1 ; autoHop = false ; refreshServerControls ( ) elseif not hopPending then task . spawn ( runScan ) end end ) connect ( autoButton . Activated , function ( ) autoHop = not autoHop if not autoHop then scanToken = scanToken + 1 setServerMessage ( hopPending and "\083\101\097\114\099\104\032\115\116\111\112\112\101\100\046\032\065\032\116\101\108\101\112\111\114\116\032\119\097\115\032\097\108\114\101\097\100\121\032\115\117\098\109\105\116\116\101\100\046" or "\065\117\116\111\032\072\111\112\032\115\116\111\112\112\101\100\046" ) else setServerMessage ( "\065\117\116\111\032\072\111\112\032\101\110\097\098\108\101\100\046\032\083\101\097\114\099\104\105\110\103\032\102\111\114\032\116\104\101\032\101\109\112\116\105\101\115\116\032\049\045\051\032\112\108\097\121\101\114\032\115\101\114\118\101\114\046\046\046" ) end refreshServerControls ( ) end ) connect ( TeleportService . TeleportInitFailed , function ( who , result ,
-errorMessage , placeId , options ) if who == _h5 and hopPending and placeId == game . PlaceId then local failedId = options and options . ServerInstanceId if failedId and failedId ~= "" and failedId ~= hopPending . Id then return end hopPending = nil setServerMessage ( "\084\101\108\101\112\111\114\116\032\102\097\105\108\101\100\058\032" .. tostring ( errorMessage ) .. ( autoHop and "\032\226\128\162\032\116\114\121\105\110\103\032\097\110\111\116\104\101\114\032\115\101\114\118\101\114" or "" ) ) renderServers ( ) end end ) renderServers ( ) refreshServerControls ( ) local biomeHeader = header ( biomes , "\240\159\167\173\032\066\073\079\077\069\032\084\069\076\069\080\079\082\084\083" ) local biomeBack = button ( "\066\097\099\107" , UDim2 . fromOffset ( 72 , 28 ) , UDim2
-. new ( 1 , - 84 , 0 , 10 ) , biomeHeader ) label ( { Position = UDim2 . fromOffset ( 12 , 52 ) , Size = UDim2 . new ( 1 , - 24 , 0 , 52 ) , TextWrapped = true , TextSize = 11 , Text = "\076\111\097\100\101\100\032\097\114\101\097\115\032\102\114\111\109\032\087\111\114\107\115\112\097\099\101\046\077\097\112\n\065\032\115\111\108\105\100\032\115\117\114\102\097\099\101\032\105\115\032\099\104\111\115\101\110\032\105\110\115\105\100\101\032\101\097\099\104\032\097\114\101\097\046\n\077\097\110\117\097\108\032\116\101\108\101\112\111\114\116\115\032\115\116\111\112\032\097\117\116\111\109\097\116\105\099\032\109\111\118\101\109\101\110\116\046" } , biomes ) local refreshBiomesButton = button ( "\082\101\102\114\101\115\104\032\065\114\101\097\115" , UDim2 . new ( 0.5 , - 16 , 0 , 36 ) , UDim2 . fromOffset ( 12 , 112 ) , biomes ) local returnBiomeButton = button ( "\082\101\116\117\114\110\032\080\114\101\118\105\111\117\115" , UDim2
-. new ( 0.5 , - 16 , 0 , 36 ) , UDim2 . new ( 0.5 , 4 , 0 , 112 ) , biomes ) local biomeStatus = label ( { Position = UDim2 . fromOffset ( 12 , 156 ) , Size = UDim2 . new ( 1 , - 24 , 0 , 50 ) , TextWrapped = true , Text = "\083\101\108\101\099\116\032\097\110\032\097\114\101\097\032\116\111\032\116\101\108\101\112\111\114\116\046" , TextSize = 11 } , biomes ) local biomeList = create ( "\083\099\114\111\108\108\105\110\103\070\114\097\109\101" , { Position = UDim2 . fromOffset ( 12 , 216 ) , Size = UDim2 . new
-( 1 , - 24 , 1 , - 232 ) , BackgroundTransparency = 1 , BorderSizePixel = 0 , ScrollBarThickness = 4 , ScrollBarImageColor3 = _d9 . Orange , CanvasSize = UDim2 . new ( ) , AutomaticCanvasSize = Enum . AutomaticSize . Y } , biomes ) create ( "\085\073\076\105\115\116\076\097\121\111\117\116" , { Padding = UDim . new ( 0 , 8 ) , SortOrder = Enum . SortOrder . LayoutOrder } , biomeList ) local function biomeLanding ( area , ch ) local root = rootOf ( ch ) local humanoid = ch and ch : FindFirstChildOfClass (
-"\072\117\109\097\110\111\105\100" ) if not root or not humanoid then return nil end local parts = area : GetDescendants ( ) if area : IsA ( "\066\097\115\101\080\097\114\116" ) then table . insert ( parts , area ) end local best , bestScore = nil , - math . huge for _ , part in ipairs ( parts ) do if part : IsA ( "\066\097\115\101\080\097\114\116" ) and part . CanCollide and part . Transparency < 0.99 then local size = part . Size local horizontal = size . X * size . Z local score = math . log ( 1
-+ horizontal ) local name = part . Name : lower ( ) if name : find ( "\103\114\111\117\110\100" , 1 , true ) or name : find ( "\102\108\111\111\114" , 1 , true ) or name : find ( "\103\114\097\115\115" , 1 , true ) or name : find ( "\115\097\110\100" , 1 , true ) or name : find ( "\116\101\114\114\097\105\110" , 1 , true ) then score = score + 100 end if size . Y > math . max ( size . X , size . Z ) then score = score - 20 end if
-score > bestScore then best , bestScore = part , score end end end if not best then return nil end local box , size = best . CFrame , best . Size local vertical = ( math . abs ( box . RightVector . Y ) * size . X + math . abs ( box . UpVector . Y ) * size . Y + math . abs ( box . LookVector . Y ) * size . Z ) / 2 local params = RaycastParams . new ( ) params . FilterType = Enum . RaycastFilterType .
-Include params . FilterDescendantsInstances = { best } params . RespectCanCollide = true local origin = box . Position + Vector3 . new ( 0 , vertical + 5 , 0 ) local hit = workspace : Raycast ( origin , Vector3 . new ( 0 , - ( vertical * 2 + 10 ) , 0 ) , params ) if not hit or hit . Normal . Y < 0.35 then return nil end local position = hit . Position + Vector3 . new ( 0 , humanoid . HipHeight + root . Size . Y / 2
-+ 0.5 , 0 ) local exclusions = { ch } if safePlatform then table . insert ( exclusions , safePlatform ) end if refuge and refuge . Platform then table . insert ( exclusions , refuge . Platform ) end local overlap = OverlapParams . new ( ) overlap . FilterType = Enum . RaycastFilterType . Exclude overlap . FilterDescendantsInstances = exclusions overlap . RespectCanCollide = true local clearance = CFrame . new ( position + Vector3 . new ( 0 , 0.5 , 0 ) ) for _ , part in ipairs ( workspace : GetPartBoundsInBox ( clearance
-, Vector3 . new ( 2 , 3 , 2 ) , overlap ) ) do if part ~= best and part . CanCollide then return nil end end return CFrame . new ( position ) * root . CFrame . Rotation end local function stopForManualTeleport ( ) for _ , key in ipairs ( { "\079\114\098\115" , "\065\117\116\111\070\097\114\109" , "\075\105\108\108\066\117\103\115" , "\075\105\108\108\080\108\097\121\101\114\115" } ) do _b7 [ key ] = false refreshToggle ( key ) end followedPlayer = nil if refuge then stopRefuge ( true ) end cancelMotion ( ) if _b7 . SafeZone or safePlatform then leaveSafe (
-) _b7 . SafeZone = false refreshToggle ( "\083\097\102\101\090\111\110\101" ) end end local function teleportBiome ( area ) local ch = _h5 . Character if hopPending then biomeStatus . Text = "\087\097\105\116\032\102\111\114\032\083\101\114\118\101\114\032\072\111\112\032\116\111\032\102\105\110\105\115\104\046" ; return end if not alive ( ch ) then biomeStatus . Text = "\067\104\097\114\097\099\116\101\114\032\117\110\097\118\097\105\108\097\098\108\101\046" ; return end local map = workspace : FindFirstChild ( "\077\097\112" ) if not map or not area : IsDescendantOf ( map ) then biomeStatus . Text = "\065\114\101\097\032\117\110\097\118\097\105\108\097\098\108\101\046\032\082\101\102\114\101\115\104\032\116\104\101\032\108\105\115\116\046" return end local ok , destination = pcall ( biomeLanding , area , ch ) if not ok or not destination then biomeStatus .
-Text = "\078\111\032\099\108\101\097\114\032\115\111\108\105\100\032\108\097\110\100\105\110\103\032\102\111\117\110\100\032\105\110\032" .. area . Name .. "\046" return end stopForManualTeleport ( ) local previousPosition = rootOf ( ch ) . CFrame if move ( ch , destination ) then biomeReturn = { Character = ch , CFrame = previousPosition } checkpointCharacter , checkpoint = ch , destination biomeStatus . Text = "\084\101\108\101\112\111\114\116\101\100\032\116\111\032" .. area . Name .. "\046" else biomeStatus . Text = "\084\101\108\101\112\111\114\116\032\102\097\105\108\101\100\046" end end local function refreshBiomes ( ) for _ , connection in ipairs ( biomeRowConnections ) do connection : Disconnect ( ) end table . clear ( biomeRowConnections ) for _ , child in
-ipairs ( biomeList : GetChildren ( ) ) do if child : IsA ( "\071\117\105\079\098\106\101\099\116" ) then child : Destroy ( ) end end local map = workspace : FindFirstChild ( "\077\097\112" ) if not map then biomeStatus . Text = "\087\111\114\107\115\112\097\099\101\046\077\097\112\032\105\115\032\110\111\116\032\099\117\114\114\101\110\116\108\121\032\108\111\097\100\101\100\046" ; return end local areas = { } for _ , area in ipairs ( map : GetChildren ( ) ) do if area : IsA ( "\070\111\108\100\101\114" ) or area : IsA ( "\077\111\100\101\108" ) or area : IsA ( "\066\097\115\101\080\097\114\116" ) then table . insert ( areas , area ) end end table . sort (
-areas , function ( a , b ) return a . Name : lower ( ) < b . Name : lower ( ) end ) for index , area in ipairs ( areas ) do local row = button ( "\084\101\108\101\112\111\114\116\032\116\111\032" .. area . Name , UDim2 . new ( 1 , - 8 , 0 , 44 ) , UDim2 . new ( ) , biomeList ) row . LayoutOrder = index local selected = area table . insert ( biomeRowConnections , row . Activated : Connect ( function ( ) teleportBiome ( selected ) end ) )
-end biomeStatus . Text = # areas .. "\032\108\111\097\100\101\100\032\097\114\101\097\115\046\032\067\104\111\111\115\101\032\097\032\100\101\115\116\105\110\097\116\105\111\110\046" end connect ( refreshBiomesButton . Activated , refreshBiomes ) connect ( returnBiomeButton . Activated , function ( ) local saved = biomeReturn if hopPending then biomeStatus . Text = "\087\097\105\116\032\102\111\114\032\083\101\114\118\101\114\032\072\111\112\032\116\111\032\102\105\110\105\115\104\046" ; return end if not saved or saved . Character ~= _h5 . Character or not alive ( saved . Character ) then biomeStatus . Text = "\078\111\032\112\114\101\118\105\111\117\115\032\108\111\099\097\116\105\111\110\032\102\111\114\032\116\104\105\115\032\099\104\097\114\097\099\116\101\114\046" return end stopForManualTeleport ( ) if move ( saved . Character , saved . CFrame ) then checkpointCharacter , checkpoint = saved . Character , saved . CFrame biomeReturn = nil biomeStatus .
-Text = "\082\101\116\117\114\110\101\100\032\116\111\032\116\104\101\032\112\114\101\118\105\111\117\115\032\108\111\099\097\116\105\111\110\046" else biomeStatus . Text = "\082\101\116\117\114\110\032\102\097\105\108\101\100\046" end end ) connect ( biomesButton . Activated , function ( ) showWindow ( biomes ) ; refreshBiomes ( ) end ) connect ( biomeBack . Activated , function ( ) showWindow ( main ) end ) connect ( settingsButton . Activated , function ( ) showWindow ( settings ) ; scanColors ( ) end ) connect ( serversButton . Activated , function ( ) showWindow ( servers ) end ) connect ( settingsBack . Activated , function ( ) showWindow ( main ) end ) connect ( serverBack . Activated
-, function ( ) showWindow ( main ) end ) local minimized = false _e1 . setPanelVisible = function ( visible ) minimized = not visible host . Visible = visible _e1 . reopen . Visible = true _e1 . reopen . Text = "\240\159\142\131" _e1 . reopen . BackgroundColor3 = visible and _d9 . Active or _d9 . Purple end connect ( minimize . Activated , function ( ) _e1 . setPanelVisible ( minimized ) end ) connect ( _e1 . reopen . Activated , function ( ) _e1 . setPanelVisible ( minimized ) end ) connect ( UIS
-. InputBegan , function ( input , processed ) if not processed and input . KeyCode == Enum . KeyCode . RightShift and not UIS : GetFocusedTextBox ( ) then _e1 . setPanelVisible ( minimized ) end end ) local dragging , dragInput , dragStart , startPosition = false local function draggable ( handle ) connect ( handle . InputBegan , function ( input ) if input . UserInputType == Enum . UserInputType . MouseButton1 or input . UserInputType == Enum . UserInputType . Touch then dragging , dragInput , dragStart , startPosition = true , input , input .
-Position , host . Position end end ) end draggable ( _e1 . header ) ; draggable ( mainHeader ) ; draggable ( settingsHeader ) ; draggable ( serverHeader ) ; draggable ( biomeHeader ) connect ( UIS . InputChanged , function ( input ) if dragging and ( input . UserInputType == Enum . UserInputType . MouseMovement or input == dragInput ) then local delta = input . Position - dragStart host . Position = UDim2 . new ( startPosition . X . Scale , startPosition . X . Offset + delta . X , startPosition . Y .
-Scale , startPosition . Y . Offset + delta . Y ) end end ) connect ( UIS . InputEnded , function ( input ) if input == dragInput or input . UserInputType == Enum . UserInputType . MouseButton1 then dragging = false end end ) local function cleanup ( ) if not _f3 then return end _f3 , autoHop = false , false scanToken = scanToken + 1 if refuge then stopRefuge ( true ) end cancelMotion ( ) ; leaveSafe ( ) ; stopTraversal ( ) restoreSpeed ( ) for k in pairs ( _b7 ) do _b7
-[ k ] = false end for _ , connection in ipairs ( _g8 ) do connection : Disconnect ( ) end for _ , connection in ipairs ( serverRowConnections ) do connection : Disconnect ( ) end for _ , connection in ipairs ( biomeRowConnections ) do connection : Disconnect ( ) end table . clear ( _g8 ) ; table . clear ( serverRowConnections ) table . clear ( biomeRowConnections ) end connect ( gui . Destroying , cleanup ) connect ( close . Activated , function ( ) gui : Destroy ( ) end ) connect (
-_h5 . CharacterRemoving , function ( ) if refuge then stopRefuge ( false ) end version = version + 1 stopTraversal ( ) restoreSpeed ( ) biomeReturn = nil trip , checkpoint , checkpointCharacter , followedPlayer = nil , nil , nil , nil safeCharacter = nil leaveSafe ( ) _b7 . SafeZone = false refreshToggle ( "\083\097\102\101\090\111\110\101" ) end ) local function rememberCharacter ( ch ) task . spawn ( function ( ) local root = ch : WaitForChild ( "\072\117\109\097\110\111\105\100\082\111\111\116\080\097\114\116" , 10 ) if _f3 and root and ch == _h5 . Character then checkpointCharacter , checkpoint =
-ch , root . CFrame end end ) end connect ( _h5 . CharacterAdded , rememberCharacter ) if _h5 . Character then rememberCharacter ( _h5 . Character ) end task . spawn ( function ( ) while _f3 do local ch = _h5 . Character updateSpeed ( ) if not hopPending then if _b7 . AntiPlayer then if refuge then local saved = refuge if not alive ( saved . Character ) then stopRefuge ( false ) else local distance , name = nearestPlayer ( saved . Origin ) local release = math . max ( _a4 . PlayerRelease ,
-_a4 . PlayerTrigger ) if distance > release then stopRefuge ( true ) elseif saved . Platform and saved . Platform . Parent then _c2 . AntiPlayer = "\065\110\116\105\032\080\108\097\121\101\114\058\032" .. tostring ( name ) .. "\032\226\128\162\032" .. math . floor ( distance ) .. "\047" .. release move ( saved . Character , saved . Target ) else stopRefuge ( true ) end end elseif alive ( ch ) then local distance = nearestPlayer ( rootOf ( ch ) . Position ) if distance <= _a4 . PlayerTrigger then startRefuge ( ) else _c2 . AntiPlayer = "\065\110\116\105\032\080\108\097\121\101\114\058\032\109\111\110\105\116\111\114\105\110\103" end end
-elseif refuge then stopRefuge ( true ) end if alive ( ch ) then local root = rootOf ( ch ) if not trip and not refuge and not _b7 . SafeZone and not activeTween and not anchorState and root . Position . Y > _a4 . VoidHeight + 5 then local params = RaycastParams . new ( ) params . FilterType = Enum . RaycastFilterType . Exclude params . FilterDescendantsInstances = { ch } params . RespectCanCollide = true if workspace : Raycast ( root . Position , Vector3 . new ( 0 , - 8 , 0 )
-, params ) and math . abs ( root . AssemblyLinearVelocity . Y ) < 5 then checkpointCharacter , checkpoint = ch , root . CFrame end end if _b7 . AntiVoid and root . Position . Y < _a4 . VoidHeight and os . clock ( ) - lastRescue > 1 then local target if refuge and refuge . Character == ch then target = refuge . Target elseif trip and trip . Character == ch then target = trip . CFrame elseif safePlatform and safePlatform . Parent and safeCharacter == ch then target = platformTarget ( safePlatform ,
-ch , root . CFrame . Rotation ) elseif checkpointCharacter == ch then target = checkpoint end if target then lastRescue = os . clock ( ) version = version + 1 stopTraversal ( ) _c2 . AntiVoid = move ( ch , target ) and "\065\110\116\105\032\086\111\105\100\058\032\114\101\115\099\117\101\100" or "\065\110\116\105\032\086\111\105\100\058\032\114\101\115\099\117\101\032\102\097\105\108\101\100" else _c2 . AntiVoid = "\065\110\116\105\032\086\111\105\100\058\032\110\111\032\115\097\118\101\100\032\112\111\115\105\116\105\111\110" end end end end waitFor ( 0.1 ) end end ) local function findPlayerTarget ( origin ) local selected , character , humanoid local distance = math . huge for _ , other in ipairs ( Players : GetPlayers ( ) ) do if other
-~= _h5 and other . Parent == Players then local ch = other . Character local root = rootOf ( ch ) local h = ch and ch : FindFirstChildOfClass ( "\072\117\109\097\110\111\105\100" ) if root and h and h . Health > 0 and ch : IsDescendantOf ( workspace ) then local current = ( root . Position - origin ) . Magnitude if current < distance then selected , character , humanoid , distance = other , ch , h , current end end end end return selected , character , humanoid end local function followPlayerStep ( ) local
-ch , token = _h5 . Character , version if not alive ( ch ) then releaseAnchor ( ) followedPlayer = nil _c2 . Motion = "\075\105\108\108\032\080\108\097\121\101\114\115\058\032\119\097\105\116\105\110\103\032\102\111\114\032\099\104\097\114\097\099\116\101\114" waitFor ( 0.3 , token ) return end local target , targetCharacter , targetHumanoid = findPlayerTarget ( rootOf ( ch ) . Position ) if not target then followedPlayer = nil returnTrip ( ) _c2 . Motion = "\075\105\108\108\032\080\108\097\121\101\114\115\058\032\119\097\105\116\105\110\103\032\102\111\114\032\108\105\118\105\110\103\032\112\108\097\121\101\114\115" waitFor ( _a4 . SweepInterval , token ) return end followedPlayer = target beginTrip ( ch ) while canMove ( ch , token ) and _b7 . KillPlayers and target . Parent == Players
-and target . Character == targetCharacter and targetCharacter : IsDescendantOf ( workspace ) and targetHumanoid . Health > 0 do local targetRoot = rootOf ( targetCharacter ) if not targetRoot then break end if _a4 . PlayerMethod == "\084\101\108\101\112\111\114\116" then anchor ( ch ) else releaseAnchor ( ) end local destination = CFrame . new ( targetRoot . Position + Vector3 . new ( 0 , _a4 . PlayerFollowHeight , 0 ) ) * rootOf ( ch ) . CFrame . Rotation if not followMove ( ch , destination , token , _a4 . PlayerMethod , _a4 . PlayerTweenSpeed )
-then break end _c2 . Motion = "\075\105\108\108\032\080\108\097\121\101\114\115\058\032\102\111\108\108\111\119\105\110\103\032" .. target . DisplayName if not waitFor ( _a4 . PlayerFollowInterval , token ) then break end end releaseAnchor ( ) if not refuge then followedPlayer = nil end end local function followStep ( bugs ) local ch , token = _h5 . Character , version local folder = workspace : FindFirstChild ( bugs and "\066\117\103\115" or "\066\114\101\097\107\097\098\108\101\115" ) local title = bugs and "\075\105\108\108\032\066\117\103\115" or "\065\099\111\114\110\115" if not alive ( ch ) then _c2 . Motion = title .. "\058\032\119\097\105\116\105\110\103\032\102\111\114\032\099\104\097\114\097\099\116\101\114" ; waitFor ( 0.3 , token ) ; return end if
-not folder then returnTrip ( ) ; _c2 . Motion = title .. "\058\032\102\111\108\100\101\114\032\110\111\116\032\102\111\117\110\100" ; waitFor ( 0.5 , token ) ; return end local objects = { } if bugs then _e1 . gatherBugs ( folder , objects ) else _e1 . gatherAcorns ( folder , objects ) end local index = nearest ( objects , rootOf ( ch ) . Position , function ( object ) return object : IsDescendantOf ( folder ) and object ~= ch and not object : IsDescendantOf ( ch ) and ( bugs and _e1 . bugSelected ( object . Name ) or
-not bugs and _e1 . acornSelected ( object . Name ) ) end ) if not index then returnTrip ( ) ; _c2 . Motion = title .. ( bugs and "\058\032\119\097\105\116\105\110\103\032\102\111\114\032\115\101\108\101\099\116\101\100\032\098\117\103\032\116\121\112\101\115" or "\058\032\119\097\105\116\105\110\103\032\102\111\114\032\115\101\108\101\099\116\101\100\032\097\099\111\114\110\032\116\121\112\101\115" ) ; waitFor ( _a4 . SweepInterval , token ) ; return end local target = objects [ index ] beginTrip ( ch ) while canMove ( ch , token ) and not _b7 . KillPlayers and ( bugs and _b7 . KillBugs or not bugs and _b7 . AutoFarm and not _b7 . KillBugs ) and folder : IsDescendantOf ( workspace ) and target :
-IsDescendantOf ( folder ) do local destination if bugs then local position = positionOf ( target ) if not position then break end releaseAnchor ( ) destination = CFrame . new ( position + Vector3 . new ( 0 , _a4 . BugHeight , 0 ) ) * rootOf ( ch ) . CFrame . Rotation else destination = acornTarget ( target , ch ) end local method = bugs and _a4 . BugMethod or _a4 . AcornMethod local speed = bugs and _a4 . BugTweenSpeed or _a4 . AcornTweenSpeed if not destination or not followMove ( ch , destination
-, token , method , speed ) then break end _c2 . Motion = bugs and ( title .. "\058\032\102\111\108\108\111\119\105\110\103\032" .. target . Name ) or ( "\065\099\111\114\110\115\058\032" .. _a4 . AcornMode .. "\032\226\128\162\032\102\097\114\109\105\110\103\032" .. target . Name ) if not waitFor ( bugs and _a4 . BugInterval or _a4 . FarmInterval , token ) then break end end releaseAnchor ( ) end local function collectOrbs ( ) local ch , token = _h5 . Character , version local folder = workspace : FindFirstChild ( "\079\114\098\115" ) if not alive ( ch ) then _c2 . Motion = "\079\114\098\115\058\032\119\097\105\116\105\110\103\032\102\111\114\032\099\104\097\114\097\099\116\101\114" ;
-waitFor ( 0.3 , token ) ; return end if not folder then _c2 . Motion = "\079\114\098\115\058\032\102\111\108\100\101\114\032\110\111\116\032\102\111\117\110\100" ; waitFor ( 0.5 , token ) ; return end local objects , queue = { } , { } gather ( folder , objects ) for _ , object in ipairs ( objects ) do if allowedOrb ( object ) then table . insert ( queue , object ) end end if # queue == 0 then if trip then returnTrip ( ) end _c2 . Motion = "\079\114\098\115\058\032\119\097\105\116\105\110\103\032\102\111\114\032\115\101\108\101\099\116\101\100\032\099\111\108\111\114\115" waitFor ( _a4 . SweepInterval , token ) return end local saved
-= beginTrip ( ch ) local total , visited , removed = # queue , 0 , 0 while canMove ( ch , token ) and _b7 . Orbs and not _b7 . AutoFarm and not _b7 . KillBugs and not _b7 . KillPlayers and folder : IsDescendantOf ( workspace ) and # queue > 0 do local index = nearest ( queue , rootOf ( ch ) . Position , function ( object ) return object : IsDescendantOf ( folder ) and allowedOrb ( object ) end ) if not index then break end local object = table .
-remove ( queue , index ) visited = visited + 1 _c2 . Motion = "\079\114\098\115\058\032" .. _a4 . OrbMode .. "\032\226\128\162\032" .. visited .. "\047" .. total local attempts = _a4 . OrbMode == "\070\097\115\116" and 1 or _a4 . AttemptsPerOrb for attempt = 1 , attempts do if not canMove ( ch , token ) or not _b7 . Orbs or _b7 . AutoFarm or _b7 . KillBugs or _b7 . KillPlayers then break end if not object : IsDescendantOf ( folder ) or not allowedOrb ( object ) then break end if not travelOrb ( ch ,
-object , folder , token ) then break end if not waitFor ( _a4 . OrbMode == "\070\097\115\116" and 0.01 or _a4 . OrbDelay , token ) then break end if not object : IsDescendantOf ( folder ) then break end end if not object : IsDescendantOf ( folder ) then removed = removed + 1 end end restoreCollisions ( ) if trip == saved and not refuge and token == version then _c2 . Motion = returnTrip ( ) and ( "\082\101\116\117\114\110\101\100\032\226\128\162\032\114\101\109\111\118\101\100\032\111\114\098\115\058\032" .. removed .. "\047" .. total ) or "\079\114\098\115\058\032\114\101\116\117\114\110\032\117\110\097\118\097\105\108\097\098\108\101" end waitFor ( _a4 . SweepInterval , token
-) end task . spawn ( function ( ) while _f3 do local ok , err = pcall ( function ( ) if hopPending then _c2 . Motion = "\077\111\118\101\109\101\110\116\058\032\112\097\117\115\101\100\032\102\111\114\032\083\101\114\118\101\114\032\072\111\112" ; waitFor ( 0.1 ) elseif refuge then _c2 . Motion = "\077\111\118\101\109\101\110\116\058\032\112\097\117\115\101\100\032\098\121\032\065\110\116\105\032\080\108\097\121\101\114" ; waitFor ( 0.05 ) elseif _b7 . KillPlayers then followPlayerStep ( ) elseif _b7 . KillBugs then followStep ( true ) elseif _b7 . AutoFarm then followStep ( false ) elseif _b7 . Orbs then collectOrbs ( ) else if trip then returnTrip ( ) end ; _c2 . Motion = "\077\111\118\101\109\101\110\116\058\032\105\100\108\101" ; waitFor ( 0.1
-) end end ) if not ok then warn ( "\091\082\101\116\114\111\032\077\111\118\101\109\101\110\116\093" , err ) ; stopTraversal ( ) ; if not refuge then returnTrip ( ) end ; waitFor ( 0.5 ) end end end ) task . spawn ( function ( ) while _f3 do scanColors ( ) ; _e1 . scanBugs ( ) ; _e1 . scanAcorns ( ) ; waitFor ( 1 ) end end ) task . spawn ( function ( ) local nextScan = 0 while _f3 do if hopPending and os . clock ( ) - hopPending . Started > 20 then hopPending =
-nil setServerMessage ( "\084\101\108\101\112\111\114\116\032\100\105\100\032\110\111\116\032\099\111\109\112\108\101\116\101\046\032\089\111\117\032\099\097\110\032\116\114\121\032\097\110\111\116\104\101\114\032\115\101\114\118\101\114\046" ) renderServers ( ) end if autoHop and not hopPending and not scanBusy then local candidate for _ , server in ipairs ( serverResults ) do if not visitedServers [ server . id ] then candidate = server ; break end end if candidate then joinServer ( candidate ) elseif os . clock ( ) >= nextScan then runScan ( ) nextScan = os . clock ( ) + _a4 . ServerRetryDelay end end waitFor ( 0.2 ) end end ) _e1 . movementKey = function ( ) if _b7 . KillPlayers then return "\075\105\108\108\080\108\097\121\101\114\115" end
-if _b7 . KillBugs then return "\075\105\108\108\066\117\103\115" end if _b7 . AutoFarm then return "\065\117\116\111\070\097\114\109" end if _b7 . Orbs then return "\079\114\098\115" end end _e1 . detailFor = function ( key ) if key == "\079\114\098\115" then return _a4 . OrbMode .. "\032\112\097\099\101\032\226\128\162\032" .. _a4 . OrbMethod .. "\032\226\128\162\032" .. _a4 . OrbDelay .. "\115\032\099\111\110\116\097\099\116" end if key == "\065\117\116\111\070\097\114\109" then return _a4 . AcornMode .. "\032\112\097\099\101\032\226\128\162\032" .. _a4 . AcornMethod .. "\032\109\111\118\101\109\101\110\116" end if key == "\075\105\108\108\066\117\103\115" then return _a4 . BugMethod .. "\032\226\128\162\032" .. _a4 . BugHeight .. "\032\115\116\117\100\115\032\097\098\111\118\101\032\226\128\162\032\117\110\097\110\099\104\111\114\101\100\032\099\111\110\116\097\099\116" end if key == "\075\105\108\108\080\108\097\121\101\114\115" then return _a4
-. PlayerMethod .. "\032\226\128\162\032" .. _a4 . PlayerFollowHeight .. "\032\115\116\117\100\115\032\097\098\111\118\101\032\116\104\101\032\116\097\114\103\101\116" end if key == "\065\110\116\105\080\108\097\121\101\114" then return "\084\114\105\103\103\101\114\058\032" .. _a4 . PlayerTrigger .. "\032\115\116\117\100\115\032\226\128\162\032\114\101\108\101\097\115\101\058\032" .. _a4 . PlayerRelease .. "\032\115\116\117\100\115" end if key == "\065\110\116\105\086\111\105\100" then return "\082\101\115\099\117\101\032\098\101\108\111\119\032\119\111\114\108\100\032\089\032" .. _a4 . VoidHeight end if key == "\083\097\102\101\090\111\110\101" then return "\080\108\097\116\102\111\114\109\032\104\101\105\103\104\116\058\032" .. _a4 . SafeHeight .. "\032\115\116\117\100\115" end if key == "\067\117\115\116\111\109\083\112\101\101\100" then return "\087\097\108\107\105\110\103\032\115\112\101\101\100\058\032" .. _a4 . WalkSpeed .. "\032\115\116\117\100\115\047\115\101\099\111\110\100" end return "" end _e1 . reflow = function ( ) local camera = workspace . CurrentCamera if not camera then return end local viewport = camera . ViewportSize if
-viewport . X <= 24 or viewport . Y <= 24 then return end local factor = viewport . X <= 900 and 1.10 or 1 local width = math . min ( 700 , ( viewport . X - 20 ) / factor ) local height = math . min ( 820 , ( viewport . Y - 20 ) / factor ) if _e1 . LastWidth == width and _e1 . LastHeight == height and _e1 . LastScale == factor then return end _e1 . LastWidth , _e1 . LastHeight , _e1 . LastScale = width , height
-, factor scale . Scale = factor host . Size = UDim2 . fromOffset ( width , height ) local compact = height < 640 local pageY = compact and 194 or 228 local pageBottom = compact and 258 or 292 _e1 . activity . Size = UDim2 . new ( 1 , - 28 , 0 , compact and 48 or 78 ) _e1 . actionDetail . Visible = not compact for _ , page in ipairs ( { main , settings , servers , biomes } ) do page . Position = UDim2 . fromOffset ( 14 ,
-pageY ) page . Size = UDim2 . new ( 1 , - 28 , 1 , - pageBottom ) end hopStatus . Size = UDim2 . new ( 1 , - 24 , 0 , compact and 38 or 70 ) serverList . Position = UDim2 . fromOffset ( 12 , compact and 190 or 226 ) serverList . Size = UDim2 . new ( 1 , - 24 , 1 , compact and - 234 or - 270 ) biomeList . Position = UDim2 . fromOffset ( 12 , compact and 200 or 216 ) biomeList . Size
-= UDim2 . new ( 1 , - 24 , 1 , compact and - 216 or - 232 ) _e1 . intro . Visible = not compact content . Position = UDim2 . fromOffset ( 12 , compact and 50 or 100 ) content . Size = UDim2 . new ( 1 , - 24 , 1 , compact and - 62 or - 112 ) _e1 . header : FindFirstChildWhichIsA ( "\084\101\120\116\076\097\098\101\108" ) . TextSize = width < 400 and 13 or 16 local extra = width < 440 and 28 or 0 for _ , card in
-pairs ( _e1 . Cards ) do card . Frame . Size = UDim2 . new ( 1 , - 8 , 0 , 172 + extra ) card . Description . Size = UDim2 . new ( 1 , - 28 , 0 , 42 + extra ) card . State . Position = UDim2 . fromOffset ( 14 , 92 + extra ) card . Detail . Position = UDim2 . fromOffset ( 14 , 115 + extra ) card . Configure . Position = UDim2 . fromOffset ( 14 , 140 + extra ) end end _e1
-. render = function ( ) _e1 . reflow ( ) local active = _e1 . movementKey ( ) local phase , action , detail = "\073\068\076\069" , "\082\101\097\100\121\032\116\111\032\115\116\097\114\116" , "\067\104\111\111\115\101\032\097\032\102\101\097\116\117\114\101\044\032\116\104\101\110\032\117\115\101\032\084\117\114\110\032\111\110\046" local character = _h5 . Character if hopPending then phase , action , detail = "\074\079\073\078\073\078\071" , "\074\111\105\110\105\110\103\032\097\110\111\116\104\101\114\032\115\101\114\118\101\114" , serverMessage elseif refuge then phase , action , detail = "\079\078\032\072\079\076\068" , "\087\097\105\116\105\110\103\032\102\111\114\032\110\101\097\114\098\121\032\112\108\097\121\101\114\115\032\116\111\032\108\101\097\118\101" , _c2 . AntiPlayer elseif active and not alive ( character ) then phase , action , detail = "\087\065\073\084\073\078\071" , "\087\097\105\116\105\110\103\032\102\111\114\032\121\111\117\114\032\099\104\097\114\097\099\116\101\114" , "\084\104\101\032\115\101\108\101\099\116\101\100\032\102\101\097\116\117\114\101\032\114\101\115\117\109\101\115\032\097\102\116\101\114\032\114\101\115\112\097\119\110\046" elseif active then phase = "\082\085\078\078\073\078\071" action = _c2 . Motion detail =
-_e1 . detailFor ( active ) .. ( trip and "\032\226\128\162\032\114\101\116\117\114\110\032\112\111\105\110\116\032\115\097\118\101\100" or "" ) local lower = _c2 . Motion : lower ( ) if lower : find ( "\105\100\108\101" , 1 , true ) then action = "\083\116\097\114\116\105\110\103\032" .. labels [ active ] elseif lower : find ( "\119\097\105\116\105\110\103" , 1 , true ) then phase = "\087\065\073\084\073\078\071" elseif lower : find ( "\110\111\116\032\102\111\117\110\100" , 1 , true ) or lower : find ( "\117\110\097\118\097\105\108\097\098\108\101" , 1 , true ) then phase = "\067\072\069\067\075\032\083\069\084\085\080" elseif lower : find ( "\114\101\116\117\114\110\101\100" , 1 , true ) then phase = "\082\069\084\085\082\078\069\068"
-end elseif _b7 . SafeZone then phase , action , detail = "\083\065\070\069\032\080\076\065\084\070\079\082\077" , "\083\097\102\101\032\112\108\097\116\102\111\114\109\032\105\115\032\101\110\097\098\108\101\100" , _e1 . detailFor ( "\083\097\102\101\090\111\110\101" ) elseif autoHop or scanBusy then phase , action , detail = "\083\067\065\078\078\073\078\071" , "\083\101\097\114\099\104\105\110\103\032\112\117\098\108\105\099\032\115\101\114\118\101\114\115" , serverMessage end if _e1 . ToastUntil > os . clock ( ) then action = _e1 . Toast end _e1 . phase . Text = phase _e1 . action . Text = action _e1 . actionDetail . Text = detail _e1 . phase . TextColor3 = ( phase == "\082\085\078\078\073\078\071" or phase == "\082\069\084\085\082\078\069\068" ) and Color3 . fromRGB ( 133 , 221
-, 160 ) or _d9 . Orange local enabledCount = 0 for key , card in pairs ( _e1 . Cards ) do local state = "\079\070\070\032\226\128\162\032\114\101\097\100\121\032\116\111\032\115\116\097\114\116" local stateColor = _d9 . Muted if _b7 [ key ] then enabledCount = enabledCount + 1 stateColor = Color3 . fromRGB ( 133 , 221 , 160 ) if key == "\079\114\098\115" or key == "\065\117\116\111\070\097\114\109" or key == "\075\105\108\108\066\117\103\115" or key == "\075\105\108\108\080\108\097\121\101\114\115" then if hopPending then state = "\080\065\085\083\069\068\032\226\128\162\032\106\111\105\110\105\110\103\032\097\032\115\101\114\118\101\114" ; stateColor = _d9 . Orange elseif refuge then state = "\080\065\085\083\069\068\032\226\128\162\032\065\110\116\105\032\080\108\097\121\101\114\032\112\114\111\116\101\099\116\105\111\110" ; stateColor = _d9 . Orange elseif active ~=
-key then state = "\080\065\085\083\069\068\032\226\128\162\032" .. labels [ active ] .. "\032\104\097\115\032\112\114\105\111\114\105\116\121" ; stateColor = _d9 . Orange elseif not alive ( character ) then state = "\087\065\073\084\073\078\071\032\226\128\162\032\099\104\097\114\097\099\116\101\114\032\117\110\097\118\097\105\108\097\098\108\101" ; stateColor = _d9 . Orange elseif phase == "\067\072\069\067\075\032\083\069\084\085\080" then state = "\067\072\069\067\075\032\083\069\084\085\080\032\226\128\162\032\114\101\097\100\032\067\117\114\114\101\110\116\032\065\099\116\105\111\110\032\097\098\111\118\101" ; stateColor = _d9 . Orange elseif phase == "\082\069\084\085\082\078\069\068" then state = "\087\065\073\084\073\078\071\032\226\128\162\032\110\101\120\116\032\115\101\097\114\099\104\032\115\116\097\114\116\115\032\097\117\116\111\109\097\116\105\099\097\108\108\121" else state = phase == "\087\065\073\084\073\078\071" and "\087\065\073\084\073\078\071\032\226\128\162\032\114\101\097\100\032\067\117\114\114\101\110\116\032\065\099\116\105\111\110\032\097\098\111\118\101" or "\079\078\032\226\128\162\032\097\099\116\105\118\101\032\109\111\118\101\109\101\110\116\032\102\101\097\116\117\114\101" end elseif key == "\065\110\116\105\080\108\097\121\101\114" then state = refuge and "\080\082\079\084\069\067\084\073\078\071\032\226\128\162\032\119\097\105\116\105\110\103\032\102\111\114\032\112\108\097\121\101\114\115\032\116\111\032\108\101\097\118\101" or "\079\078\032\226\128\162\032\109\111\110\105\116\111\114\105\110\103\032\110\101\097\114\098\121\032\112\108\097\121\101\114\115" elseif key == "\065\110\116\105\086\111\105\100" then state = "\079\078\032\226\128\162\032\109\111\110\105\116\111\114\105\110\103\032\102\097\108\108\115" elseif key == "\083\097\102\101\090\111\110\101" then state = active and "\079\078\032\226\128\162\032\112\108\097\116\102\111\114\109\032\107\101\112\116\032\102\111\114\032\121\111\117\114\032\114\101\116\117\114\110" or "\079\078\032\226\128\162\032\112\108\097\116\102\111\114\109\032\099\114\101\097\116\101\100" elseif
-key == "\067\117\115\116\111\109\083\112\101\101\100" then state = "\079\078\032\226\128\162\032\099\117\115\116\111\109\032\119\097\108\107\105\110\103\032\115\112\101\101\100\032\097\112\112\108\105\101\100" end end card . State . Text , card . State . TextColor3 = state , stateColor card . Detail . Text = _e1 . detailFor ( key ) refreshToggle ( key ) end _e1 . footer . Text = enabledCount .. "\032\101\110\097\098\108\101\100\032\226\128\162\032\065\110\116\105\032\086\111\105\100\032" .. ( _b7 . AntiVoid and "\079\078" or "\079\070\070" ) .. "\n\072\097\108\108\111\119\101\101\110\032\101\100\105\116\105\111\110\032\226\128\162\032\077\097\100\101\032\098\121\032\082\101\116\114\111" end task . spawn ( function ( ) while _f3 do _e1 . render ( ) waitFor ( 0.1 ) end end )
+-- RETRO HALLOWEEN HUB - complete client script
+-- HTTP access is required for the public server browser.
+-- Server-authoritative collection, damage and rewards remain game-controlled.
+
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local previous = playerGui:FindFirstChild("RetroPullGUI")
+if previous then previous:Destroy() end
+
+local C = {
+    OrbMode = "Medium", OrbMethod = "Teleport", OrbDelay = 0.15,
+    AttemptsPerOrb = 3, SweepInterval = 2, TweenSpeed = 100,
+    AcornMode = "Medium", FarmInterval = 0.15, FarmOffset = 0, BugHeight = 1.5, BugInterval = 0.15,
+    AcornMethod = "Teleport", BugMethod = "Teleport", PlayerMethod = "Teleport",
+    AcornTweenSpeed = 100, BugTweenSpeed = 80, PlayerTweenSpeed = 80,
+    PlayerFollowHeight = 5, PlayerFollowInterval = 0.03,
+    SafeHeight = 1000,
+    PlayerTrigger = 20, PlayerRelease = 500, AntiHeight = 50,
+    VoidHeight = workspace.FallenPartsDestroyHeight + 50,
+    ServerRetryDelay = 10,
+    WalkSpeed = 16,
+}
+local defaults = {}
+for k, v in pairs(C) do defaults[k] = v end
+local E = {Orbs=false, AutoFarm=false, KillBugs=false, KillPlayers=false, AntiPlayer=false,
+    AntiVoid=true, SafeZone=false, CustomSpeed=false}
+local M = {Motion="Movement: idle", AntiPlayer="Anti Player: OFF",
+    AntiVoid="Anti Void: ON",
+    SafeZone="Safe Zone: OFF"}
+local T = {
+    Background=Color3.fromRGB(17,10,23), Panel=Color3.fromRGB(31,17,39),
+    Button=Color3.fromRGB(54,28,62), Orange=Color3.fromRGB(255,130,28),
+    Purple=Color3.fromRGB(143,74,220), Text=Color3.fromRGB(255,235,208),
+    Muted=Color3.fromRGB(190,160,198), Active=Color3.fromRGB(139,63,18),
+}
+local running, connections = true, {}
+local version, trip, refuge, safePlatform, safeReturn, safeCharacter = 0
+local activeTween, anchorState, noclipCharacter
+local followedPlayer
+local speedState
+local biomeReturn
+local biomeRowConnections = {}
+local collisionStates = {}
+local checkpoint, checkpointCharacter, lastRescue = nil, nil, 0
+local buttons, labels, fields = {}, {}, {}
+local selectedColors, knownColors, colorRows = {}, {}, {}
+local defaultColorSelected = true
+local refreshColors = function() end
+local U = {Cards={}, Nav={}, Group="Farm", ActiveTab="Farm", SettingsRows={}, SettingTab="Orbs", ToastUntil=0,
+    BugSelection={}, KnownBugs={}, BugRows={}, BugDefault=true,
+    AcornSelection={}, KnownAcorns={}, AcornRows={}, AcornDefault=true}
+
+-- Server browser state.
+local serverResults, visitedServers, serverRowConnections = {}, {}, {}
+local scanBusy, scanToken, autoHop, hopPending = false, 0, false, nil
+local serverMessage = "Ready. Scan public servers with 1-3 players."
+local renderServers, refreshServerControls
+
+local function connect(signal, fn)
+    local connection = signal:Connect(fn)
+    table.insert(connections, connection)
+    return connection
+end
+local function waitFor(seconds, expectedVersion)
+    local deadline = os.clock() + seconds
+    repeat
+        if not running or (expectedVersion and expectedVersion ~= version) then return false end
+        local remaining = deadline - os.clock()
+        if remaining <= 0 then
+            if seconds <= 0 then task.wait() end
+            return running and (not expectedVersion or expectedVersion == version)
+        end
+        task.wait(math.min(0.05, remaining))
+    until false
+end
+local function rootOf(character)
+    return character and character:FindFirstChild("HumanoidRootPart")
+end
+local function alive(character)
+    local h = character and character:FindFirstChildOfClass("Humanoid")
+    return character ~= nil and character == player.Character and rootOf(character) ~= nil
+        and h ~= nil and h.Health > 0
+end
+local function restoreSpeed()
+    local saved = speedState
+    speedState = nil
+    if saved then pcall(function() saved.Humanoid.WalkSpeed = saved.Original end) end
+end
+local function updateSpeed()
+    local ch = player.Character
+    local humanoid = ch and ch:FindFirstChildOfClass("Humanoid")
+    if not E.CustomSpeed or not humanoid or humanoid.Health <= 0 then
+        if speedState then restoreSpeed() end
+        return
+    end
+    if not speedState or speedState.Humanoid ~= humanoid then
+        restoreSpeed()
+        speedState = {Humanoid = humanoid, Original = humanoid.WalkSpeed}
+    end
+    if humanoid.WalkSpeed ~= C.WalkSpeed then humanoid.WalkSpeed = C.WalkSpeed end
+end
+local function move(character, target)
+    if not alive(character) then return false end
+    return pcall(function()
+        local root = rootOf(character)
+        character:FindFirstChildOfClass("Humanoid").Sit = false
+        root.AssemblyLinearVelocity, root.AssemblyAngularVelocity = Vector3.zero, Vector3.zero
+        character:PivotTo(target * root.CFrame:Inverse() * character:GetPivot())
+        root.AssemblyLinearVelocity, root.AssemblyAngularVelocity = Vector3.zero, Vector3.zero
+    end)
+end
+local function restoreCollisions()
+    noclipCharacter = nil
+    for part, original in pairs(collisionStates) do
+        pcall(function() part.CanCollide = original end)
+    end
+    table.clear(collisionStates)
+end
+local function applyNoclip(character)
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if collisionStates[part] == nil then collisionStates[part] = part.CanCollide end
+            part.CanCollide = false
+        end
+    end
+end
+connect(RunService.Stepped, function()
+    if running and noclipCharacter then applyNoclip(noclipCharacter) end
+end)
+local function releaseAnchor()
+    local saved = anchorState
+    anchorState = nil
+    if saved then pcall(function() saved.Root.Anchored = saved.Original end) end
+end
+local function anchor(character)
+    local root = rootOf(character)
+    if not root then return end
+    if not anchorState or anchorState.Root ~= root then
+        releaseAnchor()
+        anchorState = {Root=root, Original=root.Anchored}
+    end
+    root.Anchored = true
+end
+local function stopTraversal()
+    if activeTween then activeTween:Cancel(); activeTween = nil end
+    restoreCollisions()
+    releaseAnchor()
+end
+local function returnTrip()
+    stopTraversal()
+    local saved = trip
+    trip = nil
+    if saved and saved.Character == player.Character then return move(saved.Character, saved.CFrame) end
+    return false
+end
+local function cancelMotion()
+    version = version + 1
+    stopTraversal()
+    if not E.KillPlayers then followedPlayer = nil end
+    if not refuge then returnTrip() end
+end
+local function beginTrip(character)
+    if not alive(character) then return nil end
+    if trip and trip.Character ~= character then trip = nil end
+    if not trip then trip = {Character=character, CFrame=rootOf(character).CFrame} end
+    return trip
+end
+local function canMove(character, expectedVersion)
+    return running and version == expectedVersion and not refuge and not hopPending and alive(character)
+end
+local function platformTarget(part, character, rotation)
+    local root, h = rootOf(character), character:FindFirstChildOfClass("Humanoid")
+    local clearance = math.max(5, h.HipHeight + root.Size.Y/2 + 1)
+    return CFrame.new(part.Position + Vector3.new(0, part.Size.Y/2 + clearance, 0)) * rotation
+end
+local function makePlatform(name, position, color)
+    local part = Instance.new("Part")
+    part.Name, part.Size = name .. "_" .. player.UserId, Vector3.new(50,2,50)
+    part.Anchored, part.CanCollide = true, true
+    part.Material, part.Color, part.Transparency = Enum.Material.Neon, color, 0.15
+    part.Position, part.Parent = position, workspace
+    return part
+end
+local function leaveSafe()
+    if safeReturn and safeCharacter == player.Character then move(safeCharacter, safeReturn) end
+    if safePlatform then safePlatform:Destroy() end
+    safePlatform, safeReturn, safeCharacter = nil, nil, nil
+    M.SafeZone = "Safe Zone: OFF"
+end
+local function enterSafe()
+    local character = player.Character
+    if not alive(character) then M.SafeZone="Safe Zone: character unavailable"; return false end
+    local root = rootOf(character)
+    safeReturn, safeCharacter = root.CFrame, character
+    local ok, err = pcall(function()
+        safePlatform = makePlatform("RetroSafeZone", root.Position+Vector3.new(0,C.SafeHeight,0),T.Orange)
+        assert(move(character, platformTarget(safePlatform,character,root.CFrame.Rotation)))
+    end)
+    if not ok then warn("[Safe Zone]",err); leaveSafe(); return false end
+    M.SafeZone="Safe Zone: ON"
+    return true
+end
+local function nearestPlayer(position)
+    local distance, name = math.huge, nil
+    for _, other in ipairs(Players:GetPlayers()) do
+        -- Ignore the intentionally followed player; other players still trigger protection.
+        if other ~= player and not (E.KillPlayers and other == followedPlayer) then
+            local ch = other.Character
+            local root = rootOf(ch)
+            local h = ch and ch:FindFirstChildOfClass("Humanoid")
+            if root and h and h.Health > 0 then
+                local d = (root.Position-position).Magnitude
+                if d < distance then distance,name=d,other.DisplayName end
+            end
+        end
+    end
+    return distance,name
+end
+local function stopRefuge(restore)
+    local saved = refuge
+    refuge = nil
+    version = version + 1
+    stopTraversal()
+    if saved then
+        if restore and saved.Character == player.Character then move(saved.Character,saved.ReturnCFrame) end
+        if saved.Platform then saved.Platform:Destroy() end
+    end
+    M.AntiPlayer=E.AntiPlayer and "Anti Player: monitoring" or "Anti Player: OFF"
+end
+local function startRefuge()
+    local ch=player.Character
+    if refuge or not alive(ch) then return end
+    local root=rootOf(ch)
+    local saved={Character=ch,ReturnCFrame=root.CFrame,Origin=root.Position}
+    version=version+1
+    stopTraversal()
+    refuge=saved
+    local ok,err=pcall(function()
+        saved.Platform=makePlatform("RetroAntiPlayer",saved.Origin+Vector3.new(0,C.AntiHeight,0),T.Purple)
+        saved.Target=platformTarget(saved.Platform,ch,saved.ReturnCFrame.Rotation)
+        assert(move(ch,saved.Target))
+    end)
+    if not ok then warn("[Anti Player]",err); stopRefuge(true) end
+end
+local function gather(container, output)
+    for _, object in ipairs(container:GetChildren()) do
+        if object:IsA("BasePart") then table.insert(output,object)
+        elseif object:IsA("Model") then
+            if object:FindFirstChildWhichIsA("BasePart",true) then table.insert(output,object) end
+        else gather(object,output) end
+    end
+end
+local function getPart(object)
+    if object:IsA("BasePart") then return object end
+    if object:IsA("Model") then return object.PrimaryPart or object:FindFirstChildWhichIsA("BasePart",true) end
+end
+local function positionOf(object)
+    local part=getPart(object)
+    return part and part.Position
+end
+local function colorInfo(object)
+    local part=getPart(object)
+    if not part then return nil end
+    local color=part.Color
+    return string.format("%d,%d,%d",math.floor(color.R*255+0.5),math.floor(color.G*255+0.5),
+        math.floor(color.B*255+0.5)),color
+end
+local function colorName(color)
+    local h,s,v=color:ToHSV()
+    if v<0.16 then return "Black" end
+    if s<0.14 then return v>0.85 and "White" or "Gray" end
+    h=h*360
+    if h<15 or h>=345 then return "Red" elseif h<45 then return "Orange"
+    elseif h<70 then return "Yellow" elseif h<165 then return "Green"
+    elseif h<195 then return "Cyan" elseif h<255 then return "Blue"
+    elseif h<290 then return "Purple" end
+    return "Pink"
+end
+local function colorSelected(key)
+    if selectedColors[key]==nil then return defaultColorSelected end
+    return selectedColors[key]
+end
+local function allowedOrb(object)
+    local key=colorInfo(object)
+    return key~=nil and colorSelected(key)
+end
+local function nearest(objects, origin, predicate)
+    local index,distance=nil,math.huge
+    for i,object in ipairs(objects) do
+        if predicate(object) then
+            local position=positionOf(object)
+            if position then
+                local d=(position-origin).Magnitude
+                if d<distance then index,distance=i,d end
+            end
+        end
+    end
+    return index
+end
+local function travelOrb(ch, object, folder, token)
+    if not canMove(ch,token) or not object:IsDescendantOf(folder) then return false end
+    local position,root=positionOf(object),rootOf(ch)
+    if not position or not root then return false end
+    local target=CFrame.new(position)*root.CFrame.Rotation
+    if C.OrbMethod=="Teleport" then return move(ch,target) end
+    if C.TweenSpeed<=0 then return false end
+    local distance=(position-root.Position).Magnitude
+    if distance<0.05 then return move(ch,target) end
+    restoreCollisions()
+    noclipCharacter=ch
+    applyNoclip(ch)
+    local tween=TweenService:Create(root,TweenInfo.new(math.max(distance/C.TweenSpeed,0.001),
+        Enum.EasingStyle.Linear),{CFrame=target})
+    activeTween=tween
+    tween:Play()
+    while canMove(ch,token) and E.Orbs and not E.AutoFarm and not E.KillBugs and not E.KillPlayers
+        and object:IsDescendantOf(folder) and tween.PlaybackState==Enum.PlaybackState.Playing do
+        task.wait(0.01)
+    end
+    local arrived=tween.PlaybackState==Enum.PlaybackState.Completed
+    if activeTween==tween then tween:Cancel(); activeTween=nil; restoreCollisions() end
+    return arrived and canMove(ch,token)
+end
+-- Short tween segments follow moving targets without locking onto an old position.
+local function followMove(ch, destination, token, method, speed)
+    if not canMove(ch,token) then return false end
+    if method=="Teleport" then return move(ch,destination) end
+    releaseAnchor()
+    local root=rootOf(ch)
+    local distance=(destination.Position-root.Position).Magnitude
+    if distance<0.1 then return true end
+    if speed<=0 then return false end
+    local duration=math.min(distance/speed,0.2)
+    local fraction=math.min(1,speed*duration/distance)
+    local endpoint=root.CFrame:Lerp(destination,fraction)
+    restoreCollisions()
+    noclipCharacter=ch
+    applyNoclip(ch)
+    local tween=TweenService:Create(root,TweenInfo.new(math.max(duration,0.001),Enum.EasingStyle.Linear),
+        {CFrame=endpoint})
+    activeTween=tween
+    tween:Play()
+    while canMove(ch,token) and tween.PlaybackState==Enum.PlaybackState.Playing do task.wait(0.01) end
+    local completed=tween.PlaybackState==Enum.PlaybackState.Completed
+    if activeTween==tween then
+        tween:Cancel()
+        activeTween=nil
+        restoreCollisions()
+    end
+    return completed and canMove(ch,token)
+end
+local function acornTarget(object,ch)
+    local ok,result=pcall(function()
+        local box,size
+        if object:IsA("Model") then box,size=object:GetBoundingBox()
+        else box,size=object.CFrame,object.Size end
+        local root,h=rootOf(ch),ch:FindFirstChildOfClass("Humanoid")
+        local height=(math.abs(box.RightVector.Y)*size.X+math.abs(box.UpVector.Y)*size.Y
+            +math.abs(box.LookVector.Y)*size.Z)/2
+        return CFrame.new(box.Position+Vector3.new(0,height+h.HipHeight+root.Size.Y/2+0.1+C.FarmOffset,0))
+            *root.CFrame.Rotation
+    end)
+    return ok and result or nil
+end
+
+-- Halloween user interface.
+local function create(class,properties,parent)
+    local object=Instance.new(class)
+    for k,v in pairs(properties) do object[k]=v end
+    object.Parent=parent
+    return object
+end
+local function rounded(object,radius)
+    create("UICorner",{CornerRadius=UDim.new(0,radius or 9)},object)
+end
+local function label(properties,parent)
+    local p={BackgroundTransparency=1,TextColor3=T.Text,Font=Enum.Font.Gotham,TextSize=12}
+    for k,v in pairs(properties) do p[k]=v end
+    return create("TextLabel",p,parent)
+end
+local function button(title,size,position,parent)
+    local b=create("TextButton",{Size=size,Position=position,BackgroundColor3=T.Button,Text=title,
+        TextColor3=T.Text,Font=Enum.Font.GothamBold,TextSize=13,AutoButtonColor=true},parent)
+    rounded(b)
+    create("UIStroke",{Color=T.Purple,Transparency=0.65,Thickness=1},b)
+    return b
+end
+local gui=create("ScreenGui",{Name="RetroPullGUI",ResetOnSpawn=false,
+    ZIndexBehavior=Enum.ZIndexBehavior.Sibling},playerGui)
+local host=create("Frame",{Size=UDim2.fromOffset(680,760),Position=UDim2.fromScale(0.5,0.5),
+    AnchorPoint=Vector2.new(0.5,0.5),BackgroundTransparency=1},gui)
+local scale=create("UIScale",{Scale=1},host)
+U.chrome=create("Frame",{Size=UDim2.fromScale(1,1),BackgroundColor3=T.Background},host)
+rounded(U.chrome,16)
+create("UIStroke",{Color=T.Orange,Thickness=2},U.chrome)
+U.navFrame=create("Frame",{Position=UDim2.fromOffset(14,54),Size=UDim2.new(1,-28,0,74),
+    BackgroundTransparency=1},U.chrome)
+U.activity=create("Frame",{Position=UDim2.fromOffset(14,138),Size=UDim2.new(1,-28,0,78),
+    BackgroundColor3=T.Panel},U.chrome)
+rounded(U.activity,10)
+label({Position=UDim2.fromOffset(12,8),Size=UDim2.new(1,-110,0,16),Text="CURRENT ACTION",
+    TextSize=11,TextColor3=T.Muted,TextXAlignment=Enum.TextXAlignment.Left},U.activity)
+U.phase=label({Position=UDim2.new(1,-106,0,8),Size=UDim2.fromOffset(94,18),Text="IDLE",
+    TextSize=11,Font=Enum.Font.GothamBold,TextColor3=T.Orange,TextXAlignment=Enum.TextXAlignment.Right},U.activity)
+U.action=label({Position=UDim2.fromOffset(12,29),Size=UDim2.new(1,-24,0,23),Text="Ready to start",
+    Font=Enum.Font.GothamBold,TextSize=16,TextTruncate=Enum.TextTruncate.AtEnd,
+    TextXAlignment=Enum.TextXAlignment.Left},U.activity)
+U.actionDetail=label({Position=UDim2.fromOffset(12,54),Size=UDim2.new(1,-24,0,18),
+    Text="Choose a feature below.",TextSize=12,TextColor3=T.Muted,
+    TextTruncate=Enum.TextTruncate.AtEnd,TextXAlignment=Enum.TextXAlignment.Left},U.activity)
+U.stop=button("Stop all actions",UDim2.new(0.5,-20,0,38),UDim2.new(0,14,1,-50),U.chrome)
+U.stop.BackgroundColor3=Color3.fromRGB(105,29,35)
+U.footer=label({Position=UDim2.new(0.5,4,1,-50),Size=UDim2.new(0.5,-18,0,38),
+    Text="HALLOWEEN EDITION\nMade by Retro",TextSize=11,TextColor3=T.Muted},U.chrome)
+U.reopen=button("🎃",UDim2.fromOffset(60,60),UDim2.new(1,-72,0.5,-30),gui)
+U.reopen.Name="PanelBubble"
+U.reopen.TextSize=28
+U.reopen.ZIndex=20
+U.reopen.AutoButtonColor=true
+U.reopen.BackgroundColor3=T.Active
+U.reopen:FindFirstChildWhichIsA("UICorner").CornerRadius=UDim.new(1,0)
+U.reopen:FindFirstChildWhichIsA("UIStroke").Thickness=2
+local function window(name)
+    local f=create("Frame",{Name=name,Position=UDim2.fromOffset(14,228),Size=UDim2.new(1,-28,1,-292),
+        BackgroundColor3=T.Background,Active=true},host)
+    rounded(f,10)
+    return f
+end
+local main,settings,servers,biomes=window("Main"),window("Settings"),window("ServerBrowser"),window("Biomes")
+settings.Visible,servers.Visible,biomes.Visible=false,false,false
+local function header(parent,title)
+    local h=create("Frame",{Size=UDim2.new(1,0,0,48),BackgroundTransparency=1,Active=true},parent)
+    label({Size=UDim2.new(1,-94,1,0),Position=UDim2.fromOffset(12,0),Text=title,
+        TextColor3=T.Orange,Font=Enum.Font.GothamBold,TextSize=14,TextXAlignment=Enum.TextXAlignment.Left},h)
+    return h
+end
+U.header=header(U.chrome,"🎃 RETRO  /  HALLOWEEN HUB")
+local mainHeader=header(main,"FARM AUTOMATION")
+local minimize=button("−",UDim2.fromOffset(30,28),UDim2.new(1,-72,0,10),mainHeader)
+local close=button("×",UDim2.fromOffset(30,28),UDim2.new(1,-36,0,10),mainHeader)
+minimize.Parent,close.Parent=U.header,U.header
+U.intro=label({Position=UDim2.fromOffset(12,44),Size=UDim2.new(1,-24,0,48),TextWrapped=true,
+    Text="Choose what to collect. The status above explains the current action.",TextSize=14,
+    TextColor3=T.Muted,TextXAlignment=Enum.TextXAlignment.Left,TextYAlignment=Enum.TextYAlignment.Top},main)
+local content=create("ScrollingFrame",{Position=UDim2.fromOffset(12,100),Size=UDim2.new(1,-24,1,-112),
+    BackgroundTransparency=1,BorderSizePixel=0,CanvasSize=UDim2.new(),
+    AutomaticCanvasSize=Enum.AutomaticSize.Y,ScrollBarThickness=4,ScrollBarImageColor3=T.Orange},main)
+create("UIListLayout",{Padding=UDim.new(0,10),SortOrder=Enum.SortOrder.LayoutOrder},content)
+U.legacy=create("Frame",{Size=UDim2.new(),Visible=false},main)
+local settingsButton=button("Settings",UDim2.new(),UDim2.new(),U.legacy)
+local serversButton=button("Servers",UDim2.new(),UDim2.new(),U.legacy)
+local biomesButton=button("Biomes",UDim2.new(),UDim2.new(),U.legacy)
+local status=label({Size=UDim2.new(),Text="Ready."},U.legacy)
+U.info={
+    Orbs={Group="Farm",Setting="Orbs",Description="Collect the selected orb colors, then return to your saved position."},
+    AutoFarm={Group="Farm",Setting="Acorns",Description="Stay on an Acorn until it disappears, then find the next one."},
+    KillBugs={Group="Combat",Setting="Bugs",Description="Follow selected bug types until they disappear. Choose types in Edit settings."},
+    KillPlayers={Group="Combat",Setting="Combat",Description="Follow the nearest living player. Switch targets when they die or leave."},
+    AntiPlayer={Group="Safety",Setting="Safety",Description="Move to a temporary platform when another player gets too close."},
+    AntiVoid={Group="Safety",Setting="Safety",Description="Return to a saved position if you fall below the rescue height."},
+    SafeZone={Group="Safety",Setting="Safety",Description="Create a platform above you. Turning this off returns you to the saved starting position."},
+    CustomSpeed={Group="Player",Setting="Player",Description="Use your chosen walking speed. Turning this off restores your previous speed."},
+}
+local function refreshToggle(key)
+    local b=buttons[key]
+    if not b then return end
+    b.Text=E[key] and "Turn off" or "Turn on"
+    b.BackgroundColor3=E[key] and T.Active or T.Button
+end
+local function addToggle(key,title,order)
+    local info=U.info[key]
+    local card=create("Frame",{Name=key,Size=UDim2.new(1,-8,0,172),BackgroundColor3=T.Panel,
+        LayoutOrder=order,Visible=info.Group==U.Group},content)
+    rounded(card,12)
+    label({Position=UDim2.fromOffset(14,12),Size=UDim2.new(1,-130,0,25),Text=title,
+        Font=Enum.Font.GothamBold,TextSize=16,TextXAlignment=Enum.TextXAlignment.Left},card)
+    local description=label({Position=UDim2.fromOffset(14,46),Size=UDim2.new(1,-28,0,42),Text=info.Description,
+        TextSize=14,TextWrapped=true,TextXAlignment=Enum.TextXAlignment.Left,
+        TextYAlignment=Enum.TextYAlignment.Top},card)
+    local b=button("",UDim2.fromOffset(94,34),UDim2.new(1,-108,0,10),card)
+    local stateLabel=label({Position=UDim2.fromOffset(14,92),Size=UDim2.new(1,-28,0,20),
+        Text="OFF • ready to start",TextSize=12,TextColor3=T.Muted,TextTruncate=Enum.TextTruncate.AtEnd,
+        TextXAlignment=Enum.TextXAlignment.Left},card)
+    local detailLabel=label({Position=UDim2.fromOffset(14,115),Size=UDim2.new(1,-28,0,18),
+        Text="",TextSize=12,TextColor3=T.Muted,TextTruncate=Enum.TextTruncate.AtEnd,
+        TextXAlignment=Enum.TextXAlignment.Left},card)
+    local configure=button("Edit settings",UDim2.fromOffset(124,26),UDim2.fromOffset(14,140),card)
+    U.Cards[key]={Frame=card,State=stateLabel,Detail=detailLabel,Description=description,Configure=configure}
+    connect(configure.Activated,function()
+        if U.goToSettings then U.goToSettings(info.Setting) end
+    end)
+    buttons[key],labels[key]=b,title
+    refreshToggle(key)
+    connect(b.Activated,function()
+        if key=="SafeZone" then
+            if refuge then stopRefuge(true) end
+            cancelMotion()
+            if E.SafeZone then E.SafeZone=false; leaveSafe() else E.SafeZone=enterSafe() end
+        elseif key=="AntiPlayer" then
+            E[key]=not E[key]
+            if not E[key] and refuge then stopRefuge(true) end
+            M.AntiPlayer=E[key] and "Anti Player: monitoring" or "Anti Player: OFF"
+        elseif key=="AntiVoid" then
+            E[key]=not E[key]
+            M.AntiVoid=E[key] and "Anti Void: ON" or "Anti Void: OFF"
+        elseif key=="CustomSpeed" then
+            E[key]=not E[key]
+            updateSpeed()
+        else
+            E[key]=not E[key]
+            if key=="Orbs" or key=="AutoFarm" or key=="KillBugs" or key=="KillPlayers" then cancelMotion()
+            end
+        end
+        refreshToggle(key)
+    end)
+end
+addToggle("Orbs","Auto Farm Orbs",1)
+addToggle("AutoFarm","Auto Farm Acorns",2)
+addToggle("KillBugs","Kill Bugs",3)
+addToggle("KillPlayers","Kill Players",4)
+addToggle("AntiPlayer","Anti Player",5)
+addToggle("AntiVoid","Anti Void",6)
+addToggle("SafeZone","Safe Platform",7)
+addToggle("CustomSpeed","Walk Speed",8)
+U.guide=label({Size=UDim2.new(1,-8,0,0),AutomaticSize=Enum.AutomaticSize.Y,TextSize=14,TextWrapped=true,
+    TextXAlignment=Enum.TextXAlignment.Left,TextYAlignment=Enum.TextYAlignment.Top,Visible=false,
+    Text="GET STARTED\n\n1. Open Farm or Combat and turn on one movement feature.\n\n2. Use Edit settings to choose Teleport or Tween, speed and height.\n\n3. Read CURRENT ACTION to see the target or why movement is paused.\n\n4. Use Stop all actions to stop and release movement. Anti Void stays enabled.\n\nPANEL CONTROLS\nTap the floating pumpkin bubble to close or reopen the whole panel on mobile or PC. On PC, Right Shift does the same thing. The bubble stays visible.\n\nMOVEMENT PRIORITY\nAnti Player protection > Follow Players > Follow Bugs > Acorns > Orbs.\nAn enabled feature lower in this list waits its turn.\n\nRETURNS\nFarms save a return point before moving. Turning them off returns you there.\n\nFAST MODE\nFast visits orbs for 0.01s. The game may miss some collections. Damage and spawn timing are game-controlled."},content)
+local function showWindow(selected)
+    main.Visible,settings.Visible,servers.Visible=selected==main,selected==settings,selected==servers
+    biomes.Visible=selected==biomes
+    U.ActiveTab=selected==main and U.Group or selected==settings and "Settings"
+        or selected==servers and "Servers" or "Biomes"
+    for name,tab in pairs(U.Nav) do
+        tab.BackgroundColor3=name==U.ActiveTab and T.Active or T.Button
+    end
+end
+U.navigate=function(name)
+    if name=="Settings" then showWindow(settings)
+    elseif name=="Servers" then showWindow(servers)
+    elseif name=="Biomes" then showWindow(biomes)
+    else
+        U.Group=name
+        for key,card in pairs(U.Cards) do card.Frame.Visible=U.info[key].Group==name end
+        U.guide.Visible=name=="Guide"
+        for _,child in ipairs(mainHeader:GetChildren()) do
+            if child:IsA("TextLabel") then child.Text=name:upper() end
+        end
+        U.intro.Text=({Farm="Choose one farm. Other enabled farms wait their turn.",
+            Combat="Follow a target using Teleport or Tween. The game controls bite damage.",
+            Safety="Protection can pause farming automatically. Distances are editable.",
+            Player="Control your character's walking speed independently of tween speed.",
+            Guide="A quick explanation of the controls and priorities."})[name] or ""
+        content.CanvasPosition=Vector2.zero
+        showWindow(main)
+    end
+end
+for index,name in ipairs({"Farm","Combat","Safety","Player","Biomes","Servers","Settings","Guide"}) do
+    local column=(index-1)%4
+    local row=math.floor((index-1)/4)
+    local tab=button(name,UDim2.new(0.25,-6,0,34),UDim2.new(column*0.25,3,row*0.54,0),U.navFrame)
+    U.Nav[name]=tab
+    local selected=name
+    connect(tab.Activated,function() U.navigate(selected) end)
+end
+U.navigate("Farm")
+connect(U.stop.Activated,function()
+    autoHop=false
+    scanToken=scanToken+1
+    for key in pairs(E) do E[key]=key=="AntiVoid" end
+    if refuge then stopRefuge(true) end
+    cancelMotion()
+    leaveSafe()
+    restoreSpeed()
+    followedPlayer=nil
+    for key in pairs(buttons) do refreshToggle(key) end
+    if refreshServerControls then refreshServerControls() end
+    U.ToastUntil=os.clock()+4
+    U.Toast="All actions stopped. Anti Void is still on."
+end)
+local settingsHeader=header(settings,"🕸 HALLOWEEN SETTINGS")
+local settingsBack=button("Back",UDim2.fromOffset(72,28),UDim2.new(1,-84,0,10),settingsHeader)
+U.settingNav=create("ScrollingFrame",{Position=UDim2.fromOffset(12,48),Size=UDim2.new(1,-24,0,40),
+    BackgroundTransparency=1,BorderSizePixel=0,CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.X,
+    ScrollingDirection=Enum.ScrollingDirection.X,ScrollBarThickness=3,ScrollBarImageColor3=T.Purple},settings)
+create("UIListLayout",{FillDirection=Enum.FillDirection.Horizontal,Padding=UDim.new(0,6),
+    SortOrder=Enum.SortOrder.LayoutOrder},U.settingNav)
+local scroll=create("ScrollingFrame",{Position=UDim2.fromOffset(12,96),Size=UDim2.new(1,-24,1,-158),
+    BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=4,ScrollBarImageColor3=T.Orange,
+    CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y},settings)
+create("UIListLayout",{Padding=UDim.new(0,8),SortOrder=Enum.SortOrder.LayoutOrder},scroll)
+local notice=label({Position=UDim2.new(0,12,1,-24),Size=UDim2.new(1,-24,0,18),
+    Text="No maximum cap. Enter finite numbers.",TextSize=10},settings)
+local modeButton=button("",UDim2.new(1,-8,0,40),UDim2.new(),scroll)
+modeButton.LayoutOrder=1
+local methodButton=button("",UDim2.new(1,-8,0,40),UDim2.new(),scroll)
+methodButton.LayoutOrder=2
+local acornModeButton=button("",UDim2.new(1,-8,0,40),UDim2.new(),scroll)
+acornModeButton.LayoutOrder=3
+local function refreshModes()
+    modeButton.Text="Orb Speed: "..C.OrbMode.."  [Change]"
+    methodButton.Text="Orb Method: "..C.OrbMethod.."  [Change]"
+    acornModeButton.Text="Acorn Speed: "..C.AcornMode.."  [Change]"
+    if U.MethodButtons then
+        for key,data in pairs(U.MethodButtons) do data.Button.Text=data.Title..": "..C[key].."  [Change]" end
+    end
+end
+connect(modeButton.Activated,function()
+    C.OrbMode=({Slow="Medium",Medium="Fast",Fast="Slow",Custom="Slow"})[C.OrbMode] or "Slow"
+    C.OrbDelay=({Slow=0.45,Medium=0.15,Fast=0.01})[C.OrbMode]
+    if fields.OrbDelay then fields.OrbDelay.Text=tostring(C.OrbDelay) end
+    if not E.AutoFarm and not E.KillBugs and not E.KillPlayers then cancelMotion() end
+    refreshModes()
+    notice.Text=C.OrbMode=="Fast" and "Fast: 0.01s contact; one visit per orb." or "Speed updated."
+end)
+connect(methodButton.Activated,function()
+    C.OrbMethod=C.OrbMethod=="Teleport" and "Direct Tween + Noclip" or "Teleport"
+    if not E.AutoFarm and not E.KillBugs and not E.KillPlayers then cancelMotion() end
+    refreshModes()
+end)
+connect(acornModeButton.Activated,function()
+    C.AcornMode=({Slow="Medium",Medium="Fast",Fast="Slow",Custom="Slow"})[C.AcornMode] or "Slow"
+    C.FarmInterval=({Slow=0.45,Medium=0.15,Fast=0.01})[C.AcornMode]
+    if fields.FarmInterval then fields.FarmInterval.Text=tostring(C.FarmInterval) end
+    refreshModes()
+    notice.Text="Acorns: "..C.AcornMode.." • follow interval "..C.FarmInterval.."s. Damage is game-controlled."
+end)
+refreshModes()
+local dropdown=create("Frame",{Size=UDim2.new(1,-8,0,0),AutomaticSize=Enum.AutomaticSize.Y,
+    BackgroundColor3=T.Panel,LayoutOrder=4},scroll)
+rounded(dropdown)
+U.SettingsRows={
+    {Object=modeButton,Group="Orbs"},{Object=methodButton,Group="Orbs"},
+    {Object=acornModeButton,Group="Acorns"},{Object=dropdown,Group="Orbs"},
+}
+local panelHelp=label({Size=UDim2.new(1,-8,0,64),TextWrapped=true,
+    Text="PANEL CONTROLS  🎃\nTap the floating bubble on mobile or PC to open/close the panel. PC shortcut: Right Shift.",
+    TextSize=13,TextXAlignment=Enum.TextXAlignment.Left},scroll)
+panelHelp.LayoutOrder=90
+table.insert(U.SettingsRows,{Object=panelHelp,Group="Player"})
+U.MethodButtons={}
+for index,entry in ipairs({{"AcornMethod","Acorn movement","Acorns"},
+    {"BugMethod","Bug movement","Bugs"},{"PlayerMethod","Player movement","Combat"}}) do
+    local key,title,group=table.unpack(entry)
+    local control=button("",UDim2.new(1,-8,0,44),UDim2.new(),scroll)
+    control.LayoutOrder=4+index
+    U.MethodButtons[key]={Button=control,Title=title}
+    table.insert(U.SettingsRows,{Object=control,Group=group})
+    connect(control.Activated,function()
+        C[key]=C[key]=="Teleport" and "Tween" or "Teleport"
+        cancelMotion()
+        refreshModes()
+        notice.Text=title.." changed to "..C[key].."."
+    end)
+end
+refreshModes()
+-- Dynamic multi-select of bug Model names. New types follow the latest All/None choice.
+U.bugPanel=create("Frame",{Size=UDim2.new(1,-8,0,0),AutomaticSize=Enum.AutomaticSize.Y,
+    BackgroundColor3=T.Panel,LayoutOrder=4},scroll)
+rounded(U.bugPanel)
+table.insert(U.SettingsRows,{Object=U.bugPanel,Group="Bugs"})
+create("UIListLayout",{Padding=UDim.new(0,6),SortOrder=Enum.SortOrder.LayoutOrder},U.bugPanel)
+U.bugButton=button("Bug Types ▼",UDim2.new(1,0,0,44),UDim2.new(),U.bugPanel)
+U.bugButton.LayoutOrder=1
+U.bugBody=create("Frame",{Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,
+    BackgroundTransparency=1,Visible=false,LayoutOrder=2},U.bugPanel)
+create("UIListLayout",{Padding=UDim.new(0,6),SortOrder=Enum.SortOrder.LayoutOrder},U.bugBody)
+U.bugActions=create("Frame",{Size=UDim2.new(1,0,0,36),BackgroundTransparency=1,LayoutOrder=1},U.bugBody)
+U.bugAll=button("Select All",UDim2.new(0.5,-8,1,0),UDim2.fromOffset(4,0),U.bugActions)
+U.bugNone=button("Select None",UDim2.new(0.5,-8,1,0),UDim2.new(0.5,4,0,0),U.bugActions)
+U.bugList=create("ScrollingFrame",{Size=UDim2.new(1,0,0,180),BackgroundTransparency=1,
+    BorderSizePixel=0,ScrollBarThickness=5,ScrollBarImageColor3=T.Orange,CanvasSize=UDim2.new(),
+    AutomaticCanvasSize=Enum.AutomaticSize.Y,LayoutOrder=2},U.bugBody)
+create("UIListLayout",{Padding=UDim.new(0,5),SortOrder=Enum.SortOrder.Name},U.bugList)
+U.bugEmpty=label({Name="000_Empty",Size=UDim2.new(1,-8,0,50),
+    Text="Waiting for bug models in Workspace.Bugs...",TextWrapped=true},U.bugList)
+U.bugSelected=function(name)
+    local selected=U.BugSelection[name]
+    if selected==nil then return U.BugDefault end
+    return selected
+end
+U.refreshBugRows=function()
+    local selected,total=0,0
+    for name,info in pairs(U.KnownBugs) do
+        total=total+1
+        local active=U.bugSelected(name)
+        if active then selected=selected+1 end
+        local row=U.BugRows[name]
+        if row then
+            row.Text=(active and "[✓] " or "[ ] ")..name.."  •  "..info.Count.." available"
+            row.BackgroundColor3=active and T.Active or T.Button
+        end
+    end
+    U.bugButton.Text="Bug Types • "..selected.."/"..total..(U.bugBody.Visible and " ▲" or " ▼")
+end
+U.bugFiltersChanged=function()
+    if E.KillBugs and not E.KillPlayers then cancelMotion() end
+    U.refreshBugRows()
+end
+connect(U.bugButton.Activated,function() U.bugBody.Visible=not U.bugBody.Visible; U.refreshBugRows() end)
+connect(U.bugAll.Activated,function() U.BugDefault=true; table.clear(U.BugSelection); U.bugFiltersChanged() end)
+connect(U.bugNone.Activated,function() U.BugDefault=false; table.clear(U.BugSelection); U.bugFiltersChanged() end)
+U.gatherBugs=function(container,output)
+    for _,object in ipairs(container:GetChildren()) do
+        if object:IsA("Model") then
+            if object:FindFirstChildWhichIsA("BasePart",true) then table.insert(output,object) end
+        elseif object:IsA("Folder") then U.gatherBugs(object,output) end
+    end
+end
+U.scanBugs=function()
+    for _,info in pairs(U.KnownBugs) do info.Count=0 end
+    local folder=workspace:FindFirstChild("Bugs")
+    local bugs={}
+    if folder then U.gatherBugs(folder,bugs) end
+    for _,bug in ipairs(bugs) do
+        local name=bug.Name
+        if not U.KnownBugs[name] then U.KnownBugs[name]={Count=0} end
+        U.KnownBugs[name].Count=U.KnownBugs[name].Count+1
+        if not U.BugRows[name] then
+            local row=button("",UDim2.new(1,-8,0,44),UDim2.new(),U.bugList)
+            row.Name=name
+            U.BugRows[name]=row
+            local chosenName=name
+            connect(row.Activated,function()
+                U.BugSelection[chosenName]=not U.bugSelected(chosenName)
+                U.bugFiltersChanged()
+            end)
+        end
+    end
+    U.bugEmpty.Visible=next(U.KnownBugs)==nil
+    U.refreshBugRows()
+end
+-- Dynamic multi-select of acorn Model names. New types follow the latest All/None choice.
+U.acornPanel=create("Frame",{Size=UDim2.new(1,-8,0,0),AutomaticSize=Enum.AutomaticSize.Y,
+    BackgroundColor3=T.Panel,LayoutOrder=4},scroll)
+rounded(U.acornPanel)
+table.insert(U.SettingsRows,{Object=U.acornPanel,Group="Acorns"})
+create("UIListLayout",{Padding=UDim.new(0,6),SortOrder=Enum.SortOrder.LayoutOrder},U.acornPanel)
+U.acornButton=button("Acorn Types ▼",UDim2.new(1,0,0,44),UDim2.new(),U.acornPanel)
+U.acornButton.LayoutOrder=1
+U.acornBody=create("Frame",{Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,
+    BackgroundTransparency=1,Visible=false,LayoutOrder=2},U.acornPanel)
+create("UIListLayout",{Padding=UDim.new(0,6),SortOrder=Enum.SortOrder.LayoutOrder},U.acornBody)
+U.acornActions=create("Frame",{Size=UDim2.new(1,0,0,36),BackgroundTransparency=1,LayoutOrder=1},U.acornBody)
+U.acornAll=button("Select All",UDim2.new(0.5,-8,1,0),UDim2.fromOffset(4,0),U.acornActions)
+U.acornNone=button("Select None",UDim2.new(0.5,-8,1,0),UDim2.new(0.5,4,0,0),U.acornActions)
+U.acornList=create("ScrollingFrame",{Size=UDim2.new(1,0,0,180),BackgroundTransparency=1,
+    BorderSizePixel=0,ScrollBarThickness=5,ScrollBarImageColor3=T.Orange,CanvasSize=UDim2.new(),
+    AutomaticCanvasSize=Enum.AutomaticSize.Y,LayoutOrder=2},U.acornBody)
+create("UIListLayout",{Padding=UDim.new(0,5),SortOrder=Enum.SortOrder.Name},U.acornList)
+U.acornEmpty=label({Name="000_Empty",Size=UDim2.new(1,-8,0,50),
+    Text="Waiting for acorn models in Workspace.Breakables...",TextWrapped=true},U.acornList)
+U.acornSelected=function(name)
+    local selected=U.AcornSelection[name]
+    if selected==nil then return U.AcornDefault end
+    return selected
+end
+U.refreshAcornRows=function()
+    local selected,total=0,0
+    for name,info in pairs(U.KnownAcorns) do
+        total=total+1
+        local active=U.acornSelected(name)
+        if active then selected=selected+1 end
+        local row=U.AcornRows[name]
+        if row then
+            row.Text=(active and "[✓] " or "[ ] ")..name.."  •  "..info.Count.." available"
+            row.BackgroundColor3=active and T.Active or T.Button
+        end
+    end
+    U.acornButton.Text="Acorn Types • "..selected.."/"..total..(U.acornBody.Visible and " ▲" or " ▼")
+end
+U.acornFiltersChanged=function()
+    if E.AutoFarm and not E.KillPlayers and not E.KillBugs then cancelMotion() end
+    U.refreshAcornRows()
+end
+connect(U.acornButton.Activated,function() U.acornBody.Visible=not U.acornBody.Visible; U.refreshAcornRows() end)
+connect(U.acornAll.Activated,function() U.AcornDefault=true; table.clear(U.AcornSelection); U.acornFiltersChanged() end)
+connect(U.acornNone.Activated,function() U.AcornDefault=false; table.clear(U.AcornSelection); U.acornFiltersChanged() end)
+U.gatherAcorns=function(container,output)
+    for _,object in ipairs(container:GetChildren()) do
+        if object:IsA("Model") then
+            if object:FindFirstChildWhichIsA("BasePart",true) then table.insert(output,object) end
+        elseif object:IsA("Folder") then U.gatherAcorns(object,output) end
+    end
+end
+U.scanAcorns=function()
+    for _,info in pairs(U.KnownAcorns) do info.Count=0 end
+    local folder=workspace:FindFirstChild("Breakables")
+    local acorns={}
+    if folder then U.gatherAcorns(folder,acorns) end
+    for _,acorn in ipairs(acorns) do
+        local name=acorn.Name
+        if not U.KnownAcorns[name] then U.KnownAcorns[name]={Count=0} end
+        U.KnownAcorns[name].Count=U.KnownAcorns[name].Count+1
+        if not U.AcornRows[name] then
+            local row=button("",UDim2.new(1,-8,0,44),UDim2.new(),U.acornList)
+            row.Name=name
+            U.AcornRows[name]=row
+            local chosenName=name
+            connect(row.Activated,function()
+                U.AcornSelection[chosenName]=not U.acornSelected(chosenName)
+                U.acornFiltersChanged()
+            end)
+        end
+    end
+    U.acornEmpty.Visible=next(U.KnownAcorns)==nil
+    U.refreshAcornRows()
+end
+create("UIListLayout",{Padding=UDim.new(0,6),SortOrder=Enum.SortOrder.LayoutOrder},dropdown)
+local colorButton=button("Orb Colors ▼",UDim2.new(1,0,0,40),UDim2.new(),dropdown)
+colorButton.LayoutOrder=1
+local colorBody=create("Frame",{Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,
+    BackgroundTransparency=1,Visible=false,LayoutOrder=2},dropdown)
+create("UIListLayout",{Padding=UDim.new(0,6),SortOrder=Enum.SortOrder.LayoutOrder},colorBody)
+local actions=create("Frame",{Size=UDim2.new(1,0,0,30),BackgroundTransparency=1,LayoutOrder=1},colorBody)
+local allColors=button("Select All",UDim2.new(0.5,-8,1,0),UDim2.fromOffset(4,0),actions)
+local noColors=button("Select None",UDim2.new(0.5,-8,1,0),UDim2.new(0.5,4,0,0),actions)
+local colorList=create("ScrollingFrame",{Size=UDim2.new(1,0,0,170),BackgroundTransparency=1,
+    BorderSizePixel=0,ScrollBarThickness=4,ScrollBarImageColor3=T.Purple,CanvasSize=UDim2.new(),
+    AutomaticCanvasSize=Enum.AutomaticSize.Y,LayoutOrder=2},colorBody)
+create("UIListLayout",{Padding=UDim.new(0,5),SortOrder=Enum.SortOrder.Name},colorList)
+local emptyColors=label({Name="000_Empty",Size=UDim2.new(1,-8,0,42),Text="Waiting for Workspace.Orbs...",
+    TextWrapped=true},colorList)
+refreshColors=function()
+    local count,total=0,0
+    for key,info in pairs(knownColors) do
+        total=total+1
+        local chosen=colorSelected(key)
+        if chosen then count=count+1 end
+        local row=colorRows[key]
+        if row then
+            row.Text=(chosen and "[✓] " or "[ ] ")..colorName(info.Color).." • "..info.Count.."\nRGB "..key
+            row.BackgroundColor3=chosen and T.Active or T.Button
+        end
+    end
+    colorButton.Text="Orb Colors • "..count.."/"..total..(colorBody.Visible and " ▲" or " ▼")
+end
+local function filtersChanged()
+    if not E.AutoFarm and not E.KillBugs and not E.KillPlayers then cancelMotion() end
+    refreshColors()
+end
+connect(colorButton.Activated,function() colorBody.Visible=not colorBody.Visible; refreshColors() end)
+connect(allColors.Activated,function() defaultColorSelected=true; table.clear(selectedColors); filtersChanged() end)
+connect(noColors.Activated,function() defaultColorSelected=false; table.clear(selectedColors); filtersChanged() end)
+local function scanColors()
+    for _,info in pairs(knownColors) do info.Count=0 end
+    local folder,objects=workspace:FindFirstChild("Orbs"),{}
+    if folder then gather(folder,objects) end
+    for _,object in ipairs(objects) do
+        local key,color=colorInfo(object)
+        if key then
+            if not knownColors[key] then knownColors[key]={Color=color,Count=0} end
+            knownColors[key].Count=knownColors[key].Count+1
+            if not colorRows[key] then
+                local row=create("Frame",{Name=key,Size=UDim2.new(1,-8,0,46),BackgroundTransparency=1},colorList)
+                local swatch=create("Frame",{Size=UDim2.fromOffset(24,24),Position=UDim2.fromOffset(4,11),
+                    BackgroundColor3=color},row)
+                rounded(swatch,6)
+                local choice=button("",UDim2.new(1,-36,1,0),UDim2.fromOffset(34,0),row)
+                choice.TextSize=11
+                colorRows[key]=choice
+                local selectedKey=key
+                connect(choice.Activated,function()
+                    selectedColors[selectedKey]=not colorSelected(selectedKey); filtersChanged()
+                end)
+            end
+        end
+    end
+    emptyColors.Visible=next(knownColors)==nil
+    refreshColors()
+end
+local specs={
+    {"WalkSpeed","Character Walk Speed (studs/second)","Enable Custom Walk Speed. Zero or positive; no maximum cap."},
+    {"OrbDelay","Orb Contact Delay (seconds)","Fast uses 0.01s. Editing selects Custom."},
+    {"AttemptsPerOrb","Attempts Per Orb","Fast visits each orb once.","integer"},
+    {"SweepInterval","Target Search Interval (seconds)","Does not change the game's spawn timer."},
+    {"TweenSpeed","Direct Tween Speed (studs/second)","Must be greater than zero.","positive"},
+    {"FarmInterval","Acorn Follow Interval (seconds)","Editing selects Custom. Stays until the target disappears."},
+    {"FarmOffset","Acorn Extra Height (studs)","Negative values allowed.","signed"},
+    {"AcornTweenSpeed","Acorn Tween Speed (studs/second)","Used only when Acorn movement is Tween.","positive"},
+    {"BugHeight","Bug Contact Height (studs)","Default: 1.5. Large heights may put you outside bite range."},
+    {"BugInterval","Bug Contact Interval (seconds)","Default: 0.15s. Character stays unanchored while biting."},
+    {"BugTweenSpeed","Bug Tween Speed (studs/second)","Used only when Bug movement is Tween.","positive"},
+    {"PlayerFollowHeight","Player Follow Height (studs)","Default: 5 studs above the player's root."},
+    {"PlayerFollowInterval","Player Follow Interval (seconds)","Anchored tracking. Anti Player ignores this target."},
+    {"PlayerTweenSpeed","Player Tween Speed (studs/second)","Tween tracking stays unanchored.","positive"},
+    {"PlayerTrigger","Anti Player Trigger Distance","Default: 20 studs."},
+    {"PlayerRelease","Anti Player Release Distance","Measured from the trigger location. Default: 500."},
+    {"AntiHeight","Anti Player Platform Height","Default: 50 studs."},
+    {"VoidHeight","Anti Void Rescue Y","World Y coordinate for rescue.","signed"},
+    {"SafeHeight","Safe Zone Height (studs)","Applied on next activation."},
+    {"ServerRetryDelay","Auto Hop Retry Delay (seconds)","Wait between completed scans without matches.","positive"},
+}
+for order,spec in ipairs(specs) do
+    local key,title,hint,kind=table.unpack(spec)
+    local row=create("Frame",{Size=UDim2.new(1,-8,0,106),BackgroundColor3=T.Panel,LayoutOrder=order+10},scroll)
+    rounded(row)
+    local groups={WalkSpeed="Player",OrbDelay="Orbs",AttemptsPerOrb="Orbs",TweenSpeed="Orbs",
+        SweepInterval="General",FarmInterval="Acorns",FarmOffset="Acorns",AcornTweenSpeed="Acorns",
+        BugHeight="Bugs",BugInterval="Bugs",BugTweenSpeed="Bugs",PlayerFollowHeight="Combat",
+        PlayerFollowInterval="Combat",PlayerTweenSpeed="Combat",PlayerTrigger="Safety",PlayerRelease="Safety",
+        AntiHeight="Safety",VoidHeight="Safety",SafeHeight="Safety",ServerRetryDelay="Servers"}
+    table.insert(U.SettingsRows,{Object=row,Group=groups[key] or "General"})
+    label({Position=UDim2.fromOffset(12,8),Size=UDim2.new(1,-24,0,26),Text=title,
+        Font=Enum.Font.GothamBold,TextSize=14,TextWrapped=true,TextXAlignment=Enum.TextXAlignment.Left},row)
+    local box=create("TextBox",{Position=UDim2.fromOffset(12,39),Size=UDim2.new(1,-24,0,30),
+        BackgroundColor3=T.Button,TextColor3=T.Text,Font=Enum.Font.Gotham,TextSize=14,
+        Text=tostring(C[key]),ClearTextOnFocus=false},row)
+    rounded(box,5)
+    fields[key]=box
+    label({Position=UDim2.fromOffset(12,74),Size=UDim2.new(1,-24,0,28),Text=hint,TextSize=12,
+        TextWrapped=true,TextXAlignment=Enum.TextXAlignment.Left},row)
+    connect(box.FocusLost,function()
+        local value=tonumber((box.Text:gsub(",",".")))
+        local invalid=not value or value~=value or math.abs(value)==math.huge
+        if not invalid then
+            if kind=="integer" then invalid=value<1 or value%1~=0
+            elseif kind=="positive" then invalid=value<=0
+            elseif kind~="signed" then invalid=value<0 end
+        end
+        if invalid then
+            box.Text=tostring(C[key]); box.TextColor3=Color3.fromRGB(255,130,130)
+            notice.Text="Invalid number. The previous value was kept."
+            return
+        end
+        C[key]=value
+        box.TextColor3=T.Text
+        box.Text=tostring(value)
+        if key=="WalkSpeed" then updateSpeed() end
+        if key=="OrbDelay" then C.OrbMode="Custom"; refreshModes() end
+        if key=="FarmInterval" then C.AcornMode="Custom"; refreshModes() end
+        notice.Text="Settings updated."
+    end)
+end
+local reset=button("Restore Defaults",UDim2.new(1,-24,0,28),UDim2.new(0,12,1,-58),settings)
+connect(reset.Activated,function()
+    for key,value in pairs(defaults) do C[key]=value; if fields[key] then fields[key].Text=tostring(value) end end
+    defaultColorSelected=true
+    U.BugDefault=true
+    table.clear(U.BugSelection)
+    U.refreshBugRows()
+    U.AcornDefault=true
+    table.clear(U.AcornSelection)
+    U.refreshAcornRows()
+    if E.AutoFarm and not E.KillPlayers and not E.KillBugs then cancelMotion() end
+    table.clear(selectedColors)
+    filtersChanged(); refreshModes()
+    notice.Text="Default settings restored."
+end)
+U.settingButtons={}
+U.setSettingsFilter=function(group)
+    U.SettingTab=group
+    for _,entry in ipairs(U.SettingsRows) do
+        entry.Object.Visible=group=="All" or entry.Group==group
+            or (entry.Group=="General" and (group=="Orbs" or group=="Acorns" or group=="Combat"))
+    end
+    for name,control in pairs(U.settingButtons) do
+        control.BackgroundColor3=name==group and T.Active or T.Button
+    end
+    scroll.CanvasPosition=Vector2.zero
+end
+for index,name in ipairs({"Orbs","Acorns","Bugs","Combat","Safety","Player","Servers","All"}) do
+    local control=button(name,UDim2.fromOffset(92,34),UDim2.new(),U.settingNav)
+    control.LayoutOrder=index
+    U.settingButtons[name]=control
+    local group=name
+    connect(control.Activated,function() U.setSettingsFilter(group) end)
+end
+U.setSettingsFilter("Orbs")
+U.goToSettings=function(group)
+    U.setSettingsFilter(group)
+    U.navigate("Settings")
+end
+
+-- Server Hop window. Counts are a snapshot before joining.
+local serverHeader=header(servers,"🦇 HALLOWEEN SERVER HOP")
+local serverBack=button("Back",UDim2.fromOffset(72,28),UDim2.new(1,-84,0,10),serverHeader)
+label({Position=UDim2.fromOffset(12,52),Size=UDim2.new(1,-24,0,45),TextWrapped=true,
+    Text="PUBLIC SERVERS • 1-3 PLAYERS\nSorted by lowest player count. Counts may change.",TextColor3=T.Orange},servers)
+local scanButton=button("Scan Servers",UDim2.new(0.5,-16,0,36),UDim2.fromOffset(12,104),servers)
+local autoButton=button("Auto Hop [OFF]",UDim2.new(0.5,-16,0,36),UDim2.new(0.5,4,0,104),servers)
+local hopStatus=label({Position=UDim2.fromOffset(12,148),Size=UDim2.new(1,-24,0,70),
+    Text=serverMessage,TextWrapped=true,TextSize=11},servers)
+local serverList=create("ScrollingFrame",{Position=UDim2.fromOffset(12,226),Size=UDim2.new(1,-24,1,-270),
+    BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=4,ScrollBarImageColor3=T.Orange,
+    CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y},servers)
+create("UIListLayout",{Padding=UDim.new(0,8),SortOrder=Enum.SortOrder.LayoutOrder},serverList)
+label({Position=UDim2.new(0,12,1,-36),Size=UDim2.new(1,-24,0,26),TextSize=10,TextWrapped=true,
+    Text="Current server excluded • Re-run the script after hopping."},servers)
+local function setServerMessage(message)
+    serverMessage=message
+    if running then hopStatus.Text=message end
+end
+refreshServerControls=function()
+    scanButton.Text=scanBusy and "Stop Scan" or "Scan Servers"
+    autoButton.Text=autoHop and "Auto Hop [ON]" or "Auto Hop [OFF]"
+    autoButton.BackgroundColor3=autoHop and T.Active or T.Button
+end
+local function httpGet(url)
+    local candidates={}
+    if type(request)=="function" then table.insert(candidates,request) end
+    if type(http_request)=="function" then table.insert(candidates,http_request) end
+    if type(syn)=="table" and type(syn.request)=="function" then table.insert(candidates,syn.request) end
+    if type(http)=="table" and type(http.request)=="function" then table.insert(candidates,http.request) end
+    if type(fluxus)=="table" and type(fluxus.request)=="function" then table.insert(candidates,fluxus.request) end
+    local requestFunction=candidates[1]
+    if type(requestFunction)=="function" then
+        local response=requestFunction({Url=url,Method="GET"})
+        if type(response)~="table" then error("HTTP request returned no response") end
+        local code=tonumber(response.StatusCode or response.Status)
+        if code and (code<200 or code>=300) then error("HTTP "..code) end
+        if type(response.Body)~="string" then error("HTTP response body is missing") end
+        return response.Body
+    end
+    local ok,body=pcall(function() return game:HttpGet(url) end)
+    if not ok then error("HTTP unavailable or blocked: "..tostring(body)) end
+    return body
+end
+local function scanRound()
+    if scanBusy or not running then return false end
+    scanBusy=true
+    scanToken=scanToken+1
+    local token=scanToken
+    serverResults={}
+    renderServers()
+    refreshServerControls()
+    local cursor,seen,cursors=nil,{},{}
+    local pages,inspected=0,0
+    local scanError
+    repeat
+        local url="https://games.roblox.com/v1/games/"..tostring(game.PlaceId)
+            .."/servers/Public?sortOrder=Asc&limit=100&excludeFullGames=true"
+        if cursor then url=url.."&cursor="..HttpService:UrlEncode(cursor) end
+        local decoded
+        for attempt=1,3 do
+            if not running or token~=scanToken then break end
+            local ok,result=pcall(function() return HttpService:JSONDecode(httpGet(url)) end)
+            if ok and type(result)=="table" and type(result.data)=="table" then
+                decoded=result
+                break
+            end
+            scanError=ok and "Unexpected server API response" or tostring(result)
+            if attempt<3 then
+                setServerMessage("Request failed. Retrying "..attempt.."/3...")
+                local deadline=os.clock()+2^attempt
+                while running and token==scanToken and os.clock()<deadline do task.wait(0.1) end
+            end
+        end
+        if not running or token~=scanToken or not decoded then break end
+        scanError=nil
+        pages=pages+1
+        for _,server in ipairs(decoded.data) do
+            inspected=inspected+1
+            local count=tonumber(server.playing)
+            local capacity=tonumber(server.maxPlayers)
+            if type(server.id)=="string" and count and capacity and server.id~=game.JobId
+                and count>=1 and count<=3 and count<capacity and not seen[server.id] then
+                seen[server.id]=true
+                table.insert(serverResults,{id=server.id,playing=count,maxPlayers=capacity})
+            end
+        end
+        table.sort(serverResults,function(a,b)
+            if a.playing~=b.playing then return a.playing<b.playing end
+            return a.id<b.id
+        end)
+        renderServers()
+        setServerMessage("Scanning • pages: "..pages.." • checked: "..inspected
+            .."\nMatches with 1-3 players: "..#serverResults)
+        -- Auto Hop can use the first lowest-count matching page immediately.
+        if autoHop and #serverResults>0 then break end
+        cursor=decoded.nextPageCursor
+        if type(cursor)~="string" or cursor=="" or cursors[cursor] then cursor=nil end
+        if cursor then
+            cursors[cursor]=true
+            local deadline=os.clock()+0.8
+            while running and token==scanToken and os.clock()<deadline do task.wait(0.1) end
+        end
+    until not cursor or not running or token~=scanToken
+    local cancelled=token~=scanToken
+    scanBusy=false
+    if running then
+        refreshServerControls()
+        if hopPending then
+            -- Preserve the join status when an in-flight scan is cancelled.
+        elseif cancelled then setServerMessage("Scan stopped • matches: "..#serverResults)
+        elseif scanError then setServerMessage("Scan failed: "..scanError)
+        else setServerMessage("Scan finished • "..#serverResults.." matching servers\n1-3 players before joining • lowest count first") end
+    end
+    return not cancelled and not scanError
+end
+local function runScan()
+    local ok, result = pcall(scanRound)
+    if not ok then
+        scanBusy = false
+        if running then
+            refreshServerControls()
+            setServerMessage("Scan failed: " .. tostring(result))
+        end
+        return false
+    end
+    return result
+end
+local function joinServer(server)
+    if not running or hopPending then return false end
+    if server.id==game.JobId then return false end
+    visitedServers[server.id]=true
+    hopPending={Id=server.id,Started=os.clock()}
+    if scanBusy then scanToken=scanToken+1 end
+    if refuge then stopRefuge(true) end
+    cancelMotion()
+    setServerMessage("Joining "..server.id:sub(1,8).."... • "..server.playing.." players in last scan")
+    renderServers()
+    local ok,err=pcall(function()
+        TeleportService:TeleportToPlaceInstance(game.PlaceId,server.id,player)
+    end)
+    if not ok then
+        hopPending=nil
+        setServerMessage("Join failed: "..tostring(err))
+        renderServers()
+    end
+    return ok
+end
+renderServers=function()
+    for _,connection in ipairs(serverRowConnections) do connection:Disconnect() end
+    table.clear(serverRowConnections)
+    for _,child in ipairs(serverList:GetChildren()) do
+        if child:IsA("GuiObject") then child:Destroy() end
+    end
+    if #serverResults==0 then
+        label({Size=UDim2.new(1,-8,0,65),Text="No matches yet.\nPress Scan Servers or enable Auto Hop.",
+            TextWrapped=true,TextColor3=T.Muted},serverList)
+    end
+    for i,server in ipairs(serverResults) do
+        local row=create("Frame",{Size=UDim2.new(1,-8,0,70),BackgroundColor3=T.Panel,LayoutOrder=i},serverList)
+        rounded(row)
+        label({Position=UDim2.fromOffset(10,5),Size=UDim2.new(1,-94,1,-10),
+            Text=string.format("#%d • %d/%d players\nID: %s...\n%s",i,server.playing,server.maxPlayers,
+                server.id:sub(1,12),visitedServers[server.id] and "Previously attempted" or "Public server"),
+            TextSize=11,TextXAlignment=Enum.TextXAlignment.Left},row)
+        local join=button(hopPending and hopPending.Id==server.id and "Joining" or "Join",
+            UDim2.fromOffset(70,34),UDim2.new(1,-80,0.5,-17),row)
+        local chosen=server
+        table.insert(serverRowConnections,join.Activated:Connect(function() joinServer(chosen) end))
+    end
+end
+connect(scanButton.Activated,function()
+    if scanBusy then scanToken=scanToken+1; autoHop=false; refreshServerControls()
+    elseif not hopPending then task.spawn(runScan) end
+end)
+connect(autoButton.Activated,function()
+    autoHop=not autoHop
+    if not autoHop then
+        scanToken=scanToken+1
+        setServerMessage(hopPending and "Search stopped. A teleport was already submitted." or "Auto Hop stopped.")
+    else
+        setServerMessage("Auto Hop enabled. Searching for the emptiest 1-3 player server...")
+    end
+    refreshServerControls()
+end)
+connect(TeleportService.TeleportInitFailed,function(who,result,errorMessage,placeId,options)
+    if who==player and hopPending and placeId==game.PlaceId then
+        local failedId=options and options.ServerInstanceId
+        if failedId and failedId~="" and failedId~=hopPending.Id then return end
+        hopPending=nil
+        setServerMessage("Teleport failed: "..tostring(errorMessage)..(autoHop and " • trying another server" or ""))
+        renderServers()
+    end
+end)
+renderServers()
+refreshServerControls()
+
+-- Map folders are discovered at runtime; no guessed biome coordinates.
+local biomeHeader=header(biomes,"🧭 BIOME TELEPORTS")
+local biomeBack=button("Back",UDim2.fromOffset(72,28),UDim2.new(1,-84,0,10),biomeHeader)
+label({Position=UDim2.fromOffset(12,52),Size=UDim2.new(1,-24,0,52),TextWrapped=true,TextSize=11,
+    Text="Loaded areas from Workspace.Map\nA solid surface is chosen inside each area.\nManual teleports stop automatic movement."},biomes)
+local refreshBiomesButton=button("Refresh Areas",UDim2.new(0.5,-16,0,36),UDim2.fromOffset(12,112),biomes)
+local returnBiomeButton=button("Return Previous",UDim2.new(0.5,-16,0,36),UDim2.new(0.5,4,0,112),biomes)
+local biomeStatus=label({Position=UDim2.fromOffset(12,156),Size=UDim2.new(1,-24,0,50),TextWrapped=true,
+    Text="Select an area to teleport.",TextSize=11},biomes)
+local biomeList=create("ScrollingFrame",{Position=UDim2.fromOffset(12,216),Size=UDim2.new(1,-24,1,-232),
+    BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=4,ScrollBarImageColor3=T.Orange,
+    CanvasSize=UDim2.new(),AutomaticCanvasSize=Enum.AutomaticSize.Y},biomes)
+create("UIListLayout",{Padding=UDim.new(0,8),SortOrder=Enum.SortOrder.LayoutOrder},biomeList)
+
+local function biomeLanding(area,ch)
+    local root=rootOf(ch)
+    local humanoid=ch and ch:FindFirstChildOfClass("Humanoid")
+    if not root or not humanoid then return nil end
+    local parts=area:GetDescendants()
+    if area:IsA("BasePart") then table.insert(parts,area) end
+    local best,bestScore=nil,-math.huge
+    for _,part in ipairs(parts) do
+        if part:IsA("BasePart") and part.CanCollide and part.Transparency<0.99 then
+            local size=part.Size
+            local horizontal=size.X*size.Z
+            local score=math.log(1+horizontal)
+            local name=part.Name:lower()
+            -- Prefer floor-like objects rather than the top of a tree or wall.
+            if name:find("ground",1,true) or name:find("floor",1,true)
+                or name:find("grass",1,true) or name:find("sand",1,true)
+                or name:find("terrain",1,true) then score=score+100 end
+            if size.Y>math.max(size.X,size.Z) then score=score-20 end
+            if score>bestScore then best,bestScore=part,score end
+        end
+    end
+    if not best then return nil end
+    local box,size=best.CFrame,best.Size
+    local vertical=(math.abs(box.RightVector.Y)*size.X+math.abs(box.UpVector.Y)*size.Y
+        +math.abs(box.LookVector.Y)*size.Z)/2
+    local params=RaycastParams.new()
+    params.FilterType=Enum.RaycastFilterType.Include
+    params.FilterDescendantsInstances={best}
+    params.RespectCanCollide=true
+    local origin=box.Position+Vector3.new(0,vertical+5,0)
+    local hit=workspace:Raycast(origin,Vector3.new(0,-(vertical*2+10),0),params)
+    if not hit or hit.Normal.Y<0.35 then return nil end
+    local position=hit.Position+Vector3.new(0,humanoid.HipHeight+root.Size.Y/2+0.5,0)
+    local exclusions={ch}
+    if safePlatform then table.insert(exclusions,safePlatform) end
+    if refuge and refuge.Platform then table.insert(exclusions,refuge.Platform) end
+    local overlap=OverlapParams.new()
+    overlap.FilterType=Enum.RaycastFilterType.Exclude
+    overlap.FilterDescendantsInstances=exclusions
+    overlap.RespectCanCollide=true
+    -- A little less than the character footprint, with headroom above the landing.
+    local clearance=CFrame.new(position+Vector3.new(0,0.5,0))
+    for _,part in ipairs(workspace:GetPartBoundsInBox(clearance,Vector3.new(2,3,2),overlap)) do
+        if part~=best and part.CanCollide then return nil end
+    end
+    return CFrame.new(position)*root.CFrame.Rotation
+end
+local function stopForManualTeleport()
+    for _,key in ipairs({"Orbs","AutoFarm","KillBugs","KillPlayers"}) do
+        E[key]=false
+        refreshToggle(key)
+    end
+    followedPlayer=nil
+    if refuge then stopRefuge(true) end
+    cancelMotion()
+    if E.SafeZone or safePlatform then
+        leaveSafe()
+        E.SafeZone=false
+        refreshToggle("SafeZone")
+    end
+end
+local function teleportBiome(area)
+    local ch=player.Character
+    if hopPending then biomeStatus.Text="Wait for Server Hop to finish."; return end
+    if not alive(ch) then biomeStatus.Text="Character unavailable."; return end
+    local map=workspace:FindFirstChild("Map")
+    if not map or not area:IsDescendantOf(map) then
+        biomeStatus.Text="Area unavailable. Refresh the list."
+        return
+    end
+    local ok,destination=pcall(biomeLanding,area,ch)
+    if not ok or not destination then
+        biomeStatus.Text="No clear solid landing found in "..area.Name.."."
+        return
+    end
+    stopForManualTeleport()
+    local previousPosition=rootOf(ch).CFrame
+    if move(ch,destination) then
+        biomeReturn={Character=ch,CFrame=previousPosition}
+        checkpointCharacter,checkpoint=ch,destination
+        biomeStatus.Text="Teleported to "..area.Name.."."
+    else biomeStatus.Text="Teleport failed." end
+end
+local function refreshBiomes()
+    for _,connection in ipairs(biomeRowConnections) do connection:Disconnect() end
+    table.clear(biomeRowConnections)
+    for _,child in ipairs(biomeList:GetChildren()) do
+        if child:IsA("GuiObject") then child:Destroy() end
+    end
+    local map=workspace:FindFirstChild("Map")
+    if not map then biomeStatus.Text="Workspace.Map is not currently loaded."; return end
+    local areas={}
+    for _,area in ipairs(map:GetChildren()) do
+        if area:IsA("Folder") or area:IsA("Model") or area:IsA("BasePart") then
+            table.insert(areas,area)
+        end
+    end
+    table.sort(areas,function(a,b) return a.Name:lower()<b.Name:lower() end)
+    for index,area in ipairs(areas) do
+        local row=button("Teleport to "..area.Name,UDim2.new(1,-8,0,44),UDim2.new(),biomeList)
+        row.LayoutOrder=index
+        local selected=area
+        table.insert(biomeRowConnections,row.Activated:Connect(function() teleportBiome(selected) end))
+    end
+    biomeStatus.Text=#areas.." loaded areas. Choose a destination."
+end
+connect(refreshBiomesButton.Activated,refreshBiomes)
+connect(returnBiomeButton.Activated,function()
+    local saved=biomeReturn
+    if hopPending then biomeStatus.Text="Wait for Server Hop to finish."; return end
+    if not saved or saved.Character~=player.Character or not alive(saved.Character) then
+        biomeStatus.Text="No previous location for this character."
+        return
+    end
+    stopForManualTeleport()
+    if move(saved.Character,saved.CFrame) then
+        checkpointCharacter,checkpoint=saved.Character,saved.CFrame
+        biomeReturn=nil
+        biomeStatus.Text="Returned to the previous location."
+    else biomeStatus.Text="Return failed." end
+end)
+connect(biomesButton.Activated,function() showWindow(biomes); refreshBiomes() end)
+connect(biomeBack.Activated,function() showWindow(main) end)
+connect(settingsButton.Activated,function() showWindow(settings); scanColors() end)
+connect(serversButton.Activated,function() showWindow(servers) end)
+connect(settingsBack.Activated,function() showWindow(main) end)
+connect(serverBack.Activated,function() showWindow(main) end)
+local minimized=false
+U.setPanelVisible=function(visible)
+    minimized=not visible
+    host.Visible=visible
+    U.reopen.Visible=true
+    U.reopen.Text="🎃"
+    U.reopen.BackgroundColor3=visible and T.Active or T.Purple
+end
+connect(minimize.Activated,function() U.setPanelVisible(minimized) end)
+connect(U.reopen.Activated,function() U.setPanelVisible(minimized) end)
+connect(UIS.InputBegan,function(input,processed)
+    if not processed and input.KeyCode==Enum.KeyCode.RightShift and not UIS:GetFocusedTextBox() then
+        U.setPanelVisible(minimized)
+    end
+end)
+local dragging,dragInput,dragStart,startPosition=false
+local function draggable(handle)
+    connect(handle.InputBegan,function(input)
+        if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then
+            dragging,dragInput,dragStart,startPosition=true,input,input.Position,host.Position
+        end
+    end)
+end
+draggable(U.header); draggable(mainHeader); draggable(settingsHeader); draggable(serverHeader); draggable(biomeHeader)
+connect(UIS.InputChanged,function(input)
+    if dragging and (input.UserInputType==Enum.UserInputType.MouseMovement or input==dragInput) then
+        local delta=input.Position-dragStart
+        host.Position=UDim2.new(startPosition.X.Scale,startPosition.X.Offset+delta.X,
+            startPosition.Y.Scale,startPosition.Y.Offset+delta.Y)
+    end
+end)
+connect(UIS.InputEnded,function(input)
+    if input==dragInput or input.UserInputType==Enum.UserInputType.MouseButton1 then dragging=false end
+end)
+local function cleanup()
+    if not running then return end
+    running,autoHop=false,false
+    scanToken=scanToken+1
+    if refuge then stopRefuge(true) end
+    cancelMotion(); leaveSafe(); stopTraversal()
+    restoreSpeed()
+    for k in pairs(E) do E[k]=false end
+    for _,connection in ipairs(connections) do connection:Disconnect() end
+    for _,connection in ipairs(serverRowConnections) do connection:Disconnect() end
+    for _,connection in ipairs(biomeRowConnections) do connection:Disconnect() end
+    table.clear(connections); table.clear(serverRowConnections)
+    table.clear(biomeRowConnections)
+end
+connect(gui.Destroying,cleanup)
+connect(close.Activated,function() gui:Destroy() end)
+connect(player.CharacterRemoving,function()
+    if refuge then stopRefuge(false) end
+    version=version+1
+    stopTraversal()
+    restoreSpeed()
+    biomeReturn=nil
+    trip,checkpoint,checkpointCharacter,followedPlayer=nil,nil,nil,nil
+    safeCharacter=nil
+    leaveSafe()
+    E.SafeZone=false
+    refreshToggle("SafeZone")
+end)
+local function rememberCharacter(ch)
+    task.spawn(function()
+        local root=ch:WaitForChild("HumanoidRootPart",10)
+        if running and root and ch==player.Character then checkpointCharacter,checkpoint=ch,root.CFrame end
+    end)
+end
+connect(player.CharacterAdded,rememberCharacter)
+if player.Character then rememberCharacter(player.Character) end
+
+-- Safety monitoring.
+task.spawn(function()
+    while running do
+        local ch=player.Character
+        updateSpeed()
+        if not hopPending then
+            if E.AntiPlayer then
+                if refuge then
+                    local saved=refuge
+                    if not alive(saved.Character) then stopRefuge(false)
+                    else
+                        local distance,name=nearestPlayer(saved.Origin)
+                        local release=math.max(C.PlayerRelease,C.PlayerTrigger)
+                        if distance>release then stopRefuge(true)
+                        elseif saved.Platform and saved.Platform.Parent then
+                            M.AntiPlayer="Anti Player: "..tostring(name).." • "..math.floor(distance).."/"..release
+                            move(saved.Character,saved.Target)
+                        else stopRefuge(true) end
+                    end
+                elseif alive(ch) then
+                    local distance=nearestPlayer(rootOf(ch).Position)
+                    if distance<=C.PlayerTrigger then startRefuge() else M.AntiPlayer="Anti Player: monitoring" end
+                end
+            elseif refuge then stopRefuge(true) end
+            if alive(ch) then
+                local root=rootOf(ch)
+                if not trip and not refuge and not E.SafeZone and not activeTween and not anchorState
+                    and root.Position.Y>C.VoidHeight+5 then
+                    local params=RaycastParams.new()
+                    params.FilterType=Enum.RaycastFilterType.Exclude
+                    params.FilterDescendantsInstances={ch}
+                    params.RespectCanCollide=true
+                    if workspace:Raycast(root.Position,Vector3.new(0,-8,0),params)
+                        and math.abs(root.AssemblyLinearVelocity.Y)<5 then
+                        checkpointCharacter,checkpoint=ch,root.CFrame
+                    end
+                end
+                if E.AntiVoid and root.Position.Y<C.VoidHeight and os.clock()-lastRescue>1 then
+                    local target
+                    if refuge and refuge.Character==ch then target=refuge.Target
+                    elseif trip and trip.Character==ch then target=trip.CFrame
+                    elseif safePlatform and safePlatform.Parent and safeCharacter==ch then
+                        target=platformTarget(safePlatform,ch,root.CFrame.Rotation)
+                    elseif checkpointCharacter==ch then target=checkpoint end
+                    if target then
+                        lastRescue=os.clock()
+                        version=version+1
+                        stopTraversal()
+                        M.AntiVoid=move(ch,target) and "Anti Void: rescued" or "Anti Void: rescue failed"
+                    else M.AntiVoid="Anti Void: no saved position" end
+                end
+            end
+        end
+        waitFor(0.1)
+    end
+end)
+
+-- Track the nearest living player. Positioning does not apply server damage.
+local function findPlayerTarget(origin)
+    local selected, character, humanoid
+    local distance = math.huge
+    for _, other in ipairs(Players:GetPlayers()) do
+        if other ~= player and other.Parent == Players then
+            local ch = other.Character
+            local root = rootOf(ch)
+            local h = ch and ch:FindFirstChildOfClass("Humanoid")
+            if root and h and h.Health > 0 and ch:IsDescendantOf(workspace) then
+                local current = (root.Position - origin).Magnitude
+                if current < distance then
+                    selected, character, humanoid, distance = other, ch, h, current
+                end
+            end
+        end
+    end
+    return selected, character, humanoid
+end
+local function followPlayerStep()
+    local ch, token = player.Character, version
+    if not alive(ch) then
+        releaseAnchor()
+        followedPlayer = nil
+        M.Motion = "Kill Players: waiting for character"
+        waitFor(0.3, token)
+        return
+    end
+    local target, targetCharacter, targetHumanoid = findPlayerTarget(rootOf(ch).Position)
+    if not target then
+        followedPlayer = nil
+        returnTrip()
+        M.Motion = "Kill Players: waiting for living players"
+        waitFor(C.SweepInterval, token)
+        return
+    end
+    followedPlayer = target
+    beginTrip(ch)
+    while canMove(ch, token) and E.KillPlayers
+        and target.Parent == Players and target.Character == targetCharacter
+        and targetCharacter:IsDescendantOf(workspace) and targetHumanoid.Health > 0 do
+        local targetRoot = rootOf(targetCharacter)
+        if not targetRoot then break end
+        if C.PlayerMethod=="Teleport" then anchor(ch) else releaseAnchor() end
+        local destination = CFrame.new(targetRoot.Position + Vector3.new(0, C.PlayerFollowHeight, 0))
+            * rootOf(ch).CFrame.Rotation
+        if not followMove(ch,destination,token,C.PlayerMethod,C.PlayerTweenSpeed) then break end
+        M.Motion = "Kill Players: following " .. target.DisplayName
+        if not waitFor(C.PlayerFollowInterval, token) then break end
+    end
+    releaseAnchor()
+    -- Keep the intended target excluded during a temporary Anti Player refuge.
+    if not refuge then followedPlayer = nil end
+end
+local function followStep(bugs)
+    local ch,token=player.Character,version
+    local folder=workspace:FindFirstChild(bugs and "Bugs" or "Breakables")
+    local title=bugs and "Kill Bugs" or "Acorns"
+    if not alive(ch) then M.Motion=title..": waiting for character"; waitFor(0.3,token); return end
+    if not folder then returnTrip(); M.Motion=title..": folder not found"; waitFor(0.5,token); return end
+    local objects={}
+    if bugs then U.gatherBugs(folder,objects) else U.gatherAcorns(folder,objects) end
+    local index=nearest(objects,rootOf(ch).Position,function(object)
+        return object:IsDescendantOf(folder) and object~=ch and not object:IsDescendantOf(ch)
+            and (bugs and U.bugSelected(object.Name) or not bugs and U.acornSelected(object.Name))
+    end)
+    if not index then returnTrip(); M.Motion=title..(bugs and ": waiting for selected bug types" or ": waiting for selected acorn types"); waitFor(C.SweepInterval,token); return end
+    local target=objects[index]
+    beginTrip(ch)
+    while canMove(ch,token) and not E.KillPlayers
+        and (bugs and E.KillBugs or not bugs and E.AutoFarm and not E.KillBugs)
+        and folder:IsDescendantOf(workspace) and target:IsDescendantOf(folder) do
+        local destination
+        if bugs then
+            local position=positionOf(target)
+            if not position then break end
+            -- Keep normal character physics during contact so the server can observe movement.
+            releaseAnchor()
+            destination=CFrame.new(position+Vector3.new(0,C.BugHeight,0))*rootOf(ch).CFrame.Rotation
+        else destination=acornTarget(target,ch) end
+        local method=bugs and C.BugMethod or C.AcornMethod
+        local speed=bugs and C.BugTweenSpeed or C.AcornTweenSpeed
+        if not destination or not followMove(ch,destination,token,method,speed) then break end
+        M.Motion=bugs and (title..": following "..target.Name)
+            or ("Acorns: "..C.AcornMode.." • farming "..target.Name)
+        if not waitFor(bugs and C.BugInterval or C.FarmInterval,token) then break end
+    end
+    releaseAnchor()
+end
+local function collectOrbs()
+    local ch,token=player.Character,version
+    local folder=workspace:FindFirstChild("Orbs")
+    if not alive(ch) then M.Motion="Orbs: waiting for character"; waitFor(0.3,token); return end
+    if not folder then M.Motion="Orbs: folder not found"; waitFor(0.5,token); return end
+    local objects,queue={},{}
+    gather(folder,objects)
+    for _,object in ipairs(objects) do if allowedOrb(object) then table.insert(queue,object) end end
+    if #queue==0 then
+        if trip then returnTrip() end
+        M.Motion="Orbs: waiting for selected colors"
+        waitFor(C.SweepInterval,token)
+        return
+    end
+    local saved=beginTrip(ch)
+    local total,visited,removed=#queue,0,0
+    while canMove(ch,token) and E.Orbs and not E.AutoFarm and not E.KillBugs and not E.KillPlayers
+        and folder:IsDescendantOf(workspace) and #queue>0 do
+        local index=nearest(queue,rootOf(ch).Position,function(object)
+            return object:IsDescendantOf(folder) and allowedOrb(object)
+        end)
+        if not index then break end
+        local object=table.remove(queue,index)
+        visited=visited+1
+        M.Motion="Orbs: "..C.OrbMode.." • "..visited.."/"..total
+        local attempts=C.OrbMode=="Fast" and 1 or C.AttemptsPerOrb
+        for attempt=1,attempts do
+            if not canMove(ch,token) or not E.Orbs or E.AutoFarm or E.KillBugs or E.KillPlayers then break end
+            if not object:IsDescendantOf(folder) or not allowedOrb(object) then break end
+            if not travelOrb(ch,object,folder,token) then break end
+            if not waitFor(C.OrbMode=="Fast" and 0.01 or C.OrbDelay,token) then break end
+            if not object:IsDescendantOf(folder) then break end
+        end
+        if not object:IsDescendantOf(folder) then removed=removed+1 end
+    end
+    restoreCollisions()
+    if trip==saved and not refuge and token==version then
+        M.Motion=returnTrip() and ("Returned • removed orbs: "..removed.."/"..total) or "Orbs: return unavailable"
+    end
+    waitFor(C.SweepInterval,token)
+end
+task.spawn(function()
+    while running do
+        local ok,err=pcall(function()
+            if hopPending then M.Motion="Movement: paused for Server Hop"; waitFor(0.1)
+            elseif refuge then M.Motion="Movement: paused by Anti Player"; waitFor(0.05)
+            elseif E.KillPlayers then followPlayerStep()
+            elseif E.KillBugs then followStep(true)
+            elseif E.AutoFarm then followStep(false)
+            elseif E.Orbs then collectOrbs()
+            else if trip then returnTrip() end; M.Motion="Movement: idle"; waitFor(0.1) end
+        end)
+        if not ok then warn("[Retro Movement]",err); stopTraversal(); if not refuge then returnTrip() end; waitFor(0.5) end
+    end
+end)
+task.spawn(function() while running do scanColors(); U.scanBugs(); U.scanAcorns(); waitFor(1) end end)
+-- One Auto Hop worker; failed destinations are not automatically retried.
+task.spawn(function()
+    local nextScan=0
+    while running do
+        if hopPending and os.clock()-hopPending.Started>20 then
+            hopPending=nil
+            setServerMessage("Teleport did not complete. You can try another server.")
+            renderServers()
+        end
+        if autoHop and not hopPending and not scanBusy then
+            local candidate
+            for _,server in ipairs(serverResults) do
+                if not visitedServers[server.id] then candidate=server; break end
+            end
+            if candidate then joinServer(candidate)
+            elseif os.clock()>=nextScan then
+                runScan()
+                nextScan=os.clock()+C.ServerRetryDelay
+            end
+        end
+        waitFor(0.2)
+    end
+end)
+
+-- Readable activity and feature states; no gameplay action is performed by this renderer.
+U.movementKey=function()
+    if E.KillPlayers then return "KillPlayers" end
+    if E.KillBugs then return "KillBugs" end
+    if E.AutoFarm then return "AutoFarm" end
+    if E.Orbs then return "Orbs" end
+end
+U.detailFor=function(key)
+    if key=="Orbs" then return C.OrbMode.." pace • "..C.OrbMethod.." • "..C.OrbDelay.."s contact" end
+    if key=="AutoFarm" then return C.AcornMode.." pace • "..C.AcornMethod.." movement" end
+    if key=="KillBugs" then return C.BugMethod.." • "..C.BugHeight.." studs above • unanchored contact" end
+    if key=="KillPlayers" then return C.PlayerMethod.." • "..C.PlayerFollowHeight.." studs above the target" end
+    if key=="AntiPlayer" then return "Trigger: "..C.PlayerTrigger.." studs • release: "..C.PlayerRelease.." studs" end
+    if key=="AntiVoid" then return "Rescue below world Y "..C.VoidHeight end
+    if key=="SafeZone" then return "Platform height: "..C.SafeHeight.." studs" end
+    if key=="CustomSpeed" then return "Walking speed: "..C.WalkSpeed.." studs/second" end
+    return ""
+end
+U.reflow=function()
+    local camera=workspace.CurrentCamera
+    if not camera then return end
+    local viewport=camera.ViewportSize
+    if viewport.X<=24 or viewport.Y<=24 then return end
+    -- Use physical pixels for fit, and enlarge text and touch targets on small displays.
+    local factor=viewport.X<=900 and 1.10 or 1
+    local width=math.min(700,(viewport.X-20)/factor)
+    local height=math.min(820,(viewport.Y-20)/factor)
+    if U.LastWidth==width and U.LastHeight==height and U.LastScale==factor then return end
+    U.LastWidth,U.LastHeight,U.LastScale=width,height,factor
+    scale.Scale=factor
+    host.Size=UDim2.fromOffset(width,height)
+    local compact=height<640
+    local pageY=compact and 194 or 228
+    local pageBottom=compact and 258 or 292
+    U.activity.Size=UDim2.new(1,-28,0,compact and 48 or 78)
+    U.actionDetail.Visible=not compact
+    for _,page in ipairs({main,settings,servers,biomes}) do
+        page.Position=UDim2.fromOffset(14,pageY)
+        page.Size=UDim2.new(1,-28,1,-pageBottom)
+    end
+    -- Keep lists usable when the window has little vertical room.
+    hopStatus.Size=UDim2.new(1,-24,0,compact and 38 or 70)
+    serverList.Position=UDim2.fromOffset(12,compact and 190 or 226)
+    serverList.Size=UDim2.new(1,-24,1,compact and -234 or -270)
+    biomeList.Position=UDim2.fromOffset(12,compact and 200 or 216)
+    biomeList.Size=UDim2.new(1,-24,1,compact and -216 or -232)
+    U.intro.Visible=not compact
+    content.Position=UDim2.fromOffset(12,compact and 50 or 100)
+    content.Size=UDim2.new(1,-24,1,compact and -62 or -112)
+    U.header:FindFirstChildWhichIsA("TextLabel").TextSize=width<400 and 13 or 16
+    local extra=width<440 and 28 or 0
+    for _,card in pairs(U.Cards) do
+        card.Frame.Size=UDim2.new(1,-8,0,172+extra)
+        card.Description.Size=UDim2.new(1,-28,0,42+extra)
+        card.State.Position=UDim2.fromOffset(14,92+extra)
+        card.Detail.Position=UDim2.fromOffset(14,115+extra)
+        card.Configure.Position=UDim2.fromOffset(14,140+extra)
+    end
+end
+U.render=function()
+    U.reflow()
+    local active=U.movementKey()
+    local phase,action,detail="IDLE","Ready to start","Choose a feature, then use Turn on."
+    local character=player.Character
+    if hopPending then
+        phase,action,detail="JOINING","Joining another server",serverMessage
+    elseif refuge then
+        phase,action,detail="ON HOLD","Waiting for nearby players to leave",M.AntiPlayer
+    elseif active and not alive(character) then
+        phase,action,detail="WAITING","Waiting for your character","The selected feature resumes after respawn."
+    elseif active then
+        phase="RUNNING"
+        action=M.Motion
+        detail=U.detailFor(active)..(trip and " • return point saved" or "")
+        local lower=M.Motion:lower()
+        if lower:find("idle",1,true) then action="Starting "..labels[active]
+        elseif lower:find("waiting",1,true) then phase="WAITING"
+        elseif lower:find("not found",1,true) or lower:find("unavailable",1,true) then phase="CHECK SETUP"
+        elseif lower:find("returned",1,true) then phase="RETURNED" end
+    elseif E.SafeZone then
+        phase,action,detail="SAFE PLATFORM","Safe platform is enabled",U.detailFor("SafeZone")
+    elseif autoHop or scanBusy then
+        phase,action,detail="SCANNING","Searching public servers",serverMessage
+    end
+    if U.ToastUntil>os.clock() then action=U.Toast end
+    U.phase.Text=phase
+    U.action.Text=action
+    U.actionDetail.Text=detail
+    U.phase.TextColor3=(phase=="RUNNING" or phase=="RETURNED") and Color3.fromRGB(133,221,160) or T.Orange
+    local enabledCount=0
+    for key,card in pairs(U.Cards) do
+        local state="OFF • ready to start"
+        local stateColor=T.Muted
+        if E[key] then
+            enabledCount=enabledCount+1
+            stateColor=Color3.fromRGB(133,221,160)
+            if key=="Orbs" or key=="AutoFarm" or key=="KillBugs" or key=="KillPlayers" then
+                if hopPending then state="PAUSED • joining a server"; stateColor=T.Orange
+                elseif refuge then state="PAUSED • Anti Player protection"; stateColor=T.Orange
+                elseif active~=key then state="PAUSED • "..labels[active].." has priority"; stateColor=T.Orange
+                elseif not alive(character) then state="WAITING • character unavailable"; stateColor=T.Orange
+                elseif phase=="CHECK SETUP" then state="CHECK SETUP • read Current Action above"; stateColor=T.Orange
+                elseif phase=="RETURNED" then state="WAITING • next search starts automatically"
+                else state=phase=="WAITING" and "WAITING • read Current Action above" or "ON • active movement feature" end
+            elseif key=="AntiPlayer" then state=refuge and "PROTECTING • waiting for players to leave" or "ON • monitoring nearby players"
+            elseif key=="AntiVoid" then state="ON • monitoring falls"
+            elseif key=="SafeZone" then state=active and "ON • platform kept for your return" or "ON • platform created"
+            elseif key=="CustomSpeed" then state="ON • custom walking speed applied" end
+        end
+        card.State.Text,card.State.TextColor3=state,stateColor
+        card.Detail.Text=U.detailFor(key)
+        refreshToggle(key)
+    end
+    U.footer.Text=enabledCount.." enabled • Anti Void "..(E.AntiVoid and "ON" or "OFF").."\nHalloween edition • Made by Retro"
+end
+
+task.spawn(function()
+    while running do
+        U.render()
+        waitFor(0.1)
+    end
+end)
